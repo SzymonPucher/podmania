@@ -1343,7 +1343,20 @@
         display: none !important;
       }
       #hud.hud-minimal .hud-left-info { display: none !important; }
-      #hud.hud-minimal .hud-corner-left .mobile-actions { display: none; }    </style>
+      #hud.hud-minimal .hud-corner-left .mobile-actions { display: none; }
+      /* Grey rounded backdrops (80% opacity) */
+      #hud .speed-damper-center,
+      #hud .hud-timer-box,
+      #hud .hud-left-info,
+      #hud .engine-widget {
+        background: rgba(64, 68, 76, 0.8);
+        border-radius: 10px;
+        padding: 8px 12px;
+      }
+      #hud .hud-left-info { opacity: 1; }
+      #hud .engine-widget { opacity: 1; border: 1px solid transparent; }
+      #hud.hud-minimal .hud-left-info { padding: 0; background: none; }
+      #hud.hud-minimal .hud-left-info:has(.mobile-actions:not([style*="none"])) { padding: 0; }    </style>
   </head>
   <body>
     <div id="app">
