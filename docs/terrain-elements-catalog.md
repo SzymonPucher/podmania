@@ -32,3 +32,29 @@ A catalog of terrain features and layout elements across all playable maps in Po
 | **Banked Canyon Berm** | Angled track floor (`6°–18°` banking) for carrying speed through curves. | Dustveil Gorge, Crimson Rift, Frostspire Glacier, Zenith Skyway, Sunscorch Labyrinth |
 | **Narrow Technical Squeeze** | Tight `20–22m` canyon width sections (compared to `28–36m` wide basins/splits). | Dustveil Gorge (`20m`), Crimson Rift (`22m`), Frostspire Glacier (`22m`), Sunscorch Labyrinth (`22m`) |
 | **Finish Basin** (`finish_basin`) | Widened (`26–30m`) final stretch leading through the finish gate. | Dustveil Gorge, Crimson Rift, Frostspire Glacier, Zenith Skyway, Sunscorch Labyrinth |
+
+## Proposed Elements
+
+| Element | Category | Description |
+| :--- | :--- | :--- |
+| **Half-Pipe / U-Trough** (`half_pipe`) | Verticality & Acrobatics | Deep concave U-shaped channel where high-speed pods can ride high up the curved walls to set up corner entries or dodge floor hazards. |
+| **Wallride Bowl** (`wallride_bowl`) | Verticality & Acrobatics | Extreme `35°–65°` sweeping outer wallride curve that lets pods hold full throttle through a massive turn without washing out. |
+| **Stepped Cascade** (`stepped_cascade`) | Verticality & Acrobatics | Series of 3–5 rapid medium drops (`6m–10m` each) where fast pods can clear multiple steps in one jump while slower pods bounce down step-by-step. |
+| **True Void Gap Jump** (`void_gap`) | Verticality & Acrobatics | Broken bridge or split cliff with no `chasm_floor` underneath, requiring enough speed or boost to clear the gap onto the far landing deck. |
+| **Double-Decker / Over-Under** (`double_decker`) | Verticality & Acrobatics | Stacked two-level section where an upper bridge/stone span runs directly above a lower tunnel or floor path, offering a high-risk upper line and a safer lower line. |
+| **Tabletop Plateau Jump** (`tabletop_jump`) | Verticality & Acrobatics | Launch ramp onto an elevated flat mesa plateau followed by a down-ramp, rewarding speed control so pods land cleanly on top rather than overshooting. |
+| **Stalactite / Low-Clearance Ceiling** (`stalactite_corridor`) | Hazards & Obstacles | Low-roofed cavern or overhang studded with hanging rock/ice formations that punish big air and force pods to stay low and flat. |
+| **Crosswind Gust Zone** (`crosswind_zone`) | Hazards & Obstacles | Exposed cliffside or canyon gap with visible dust/snow wind streaks that push pods laterally, requiring active counter-steering. |
+| **Crumbling Bridge Deck** (`crumbling_bridge`) | Hazards & Obstacles | Ancient stone or ice bridge with missing edge slabs and holes along the sides, forcing precise center-line driving at speed. |
+| **Hazard Floor Basin (Lava / Acid)** (`hazard_pit`) | Hazards & Obstacles | Wide glowing floor hazard down the center or edges that overheats engines or slows pods hovering over it, forcing drivers onto narrow raised perimeter ledges. |
+| **Energy Gate Chicane** (`energy_gates`) | Hazards & Obstacles | Sci-fi pylon gates with narrow horizontal or alternating open/closed energy apertures that require tight lateral or vertical threading. |
+| **Wreckage / Debris Field** (`debris_field`) | Hazards & Obstacles | Denser field of low-to-medium boulders or podracer wreckage (smaller than `pillar_slalom`) that players must weave through or skim over. |
+| **Deep Silt / Quicksand Trench** (`silt_trench`) | Surface & Physics Modifiers | High-drag off-line surface (typically on corner outsides or shortcuts) that bogs pods down unless they hold boost or stay on the firm racing groove. |
+| **Off-Camber Curve** (`off_camber`) | Surface & Physics Modifiers | Treacherous turn banked *away* from the apex (`-6°` to `-12°`), pulling pods outward and testing braking and drift control. |
+| **Washboard / Whoops Section** (`whoops_section`) | Surface & Physics Modifiers | High-frequency rhythmic terrain ripples (much shorter wavelength than `sand_dunes`) that reward hitting the right speed to skim across the crests. |
+| **Shallow Water / Meltwater Ford** (`water_ford`) | Surface & Physics Modifiers | Shallow river crossing with spray effects and slight drag that rapidly cools overheated engines in exchange for a small speed dip. |
+| **Asymmetric Risk/Reward Fork** (`asymmetric_fork`) | Layout, Route Choice & Flow | Branching split where one route is a tight, technical shortcut (e.g., narrow cave or boost ledge) and the other is a wider, forgiving main canyon. |
+| **Helical Spiral Ramp** (`spiral_helix`) | Layout, Route Choice & Flow | Sustained `270°–360°` curving climb or descent corkscrewing around a canyon spire or skyway tower. |
+| **Double-Apex Sweeper** (`double_apex`) | Layout, Route Choice & Flow | Extra-long curving basin with two distinct apexes separated by a short straightening kink, rewarding disciplined late-apex lines. |
+| **Funnel / Bottleneck Entry** (`funnel_squeeze`) | Layout, Route Choice & Flow | Rapid narrowing from an ultra-wide basin (`50m+`) down to a tight `18m–20m` gate, creating high-speed line-selection pressure. |
+| **Natural Rock Arch Sequence** (`rock_arch_sequence`) | Layout, Route Choice & Flow | Rapid series of open-air stone or ice arches spanning the canyon, giving dramatic light/shadow strobing and speed sensation without full cave darkness. |
