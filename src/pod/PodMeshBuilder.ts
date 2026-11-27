@@ -21,9 +21,10 @@ interface CableBuffer {
 }
 
 const PLASMA_SEGMENTS = 14;
-const CABLE_RINGS = 12;
+const CABLE_RINGS = 20;
 const CABLE_SIDES = 6;
 const CABLE_RADIUS = 0.028;
+const COCKPIT_BASE_Z = 10.65;
 
 export class PodMeshBuilder {
   public readonly podRoot = new THREE.Group();
@@ -73,7 +74,7 @@ export class PodMeshBuilder {
     this.enginesGroup.add(this.leftEngine.root, this.rightEngine.root);
 
     this.buildCockpit(mats);
-    this.cockpitGroup.position.set(0, 0.85, 3.55);
+    this.cockpitGroup.position.set(0, 0.85, COCKPIT_BASE_Z);
 
     this.damperLight = new THREE.PointLight(0x38bdf8, 0, 14, 1.5);
     this.damperLight.position.set(0, -0.5, 0.5);
@@ -125,7 +126,7 @@ export class PodMeshBuilder {
     this.cockpitGroup.position.set(
       t.cockpitYawOffset * 1.4,
       0.85 + t.cockpitVertOffset,
-      3.55
+      COCKPIT_BASE_Z
     );
     this.cockpitGroup.rotation.set(
       0,
@@ -737,7 +738,7 @@ export class PodMeshBuilder {
   ): void {
     // Midpoint sags slightly at rest, pulls taut at high speed
     const tautness = Math.min(1, speedMs / 65);
-    const sag = THREE.MathUtils.lerp(0.24, 0.04, tautness);
+    const sag = THREE.MathUtils.lerp(0.45, 0.06, tautness);
     this.tmpMid.copy(start).lerp(end, 0.5);
     this.tmpMid.y -= sag;
 
