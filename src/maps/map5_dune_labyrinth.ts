@@ -21,11 +21,11 @@ export const MAP5_DUNE_LABYRINTH: MapDefinition = {
     { pos: [-80, 4, -260], canyonWidth: 28, wallHeight: 28, bankingDeg: -12, feature: 'sand_dunes' },
     { pos: [-155, 4, -345], canyonWidth: 28, wallHeight: 30, bankingDeg: -8, feature: 'sand_dunes', checkpoint: true },
 
-    // Sector 2: Boulder Scree Wash (345 - 860m)
-    { pos: [-230, 2, -425], canyonWidth: 24, wallHeight: 34, bankingDeg: 10, feature: 'rough_scree' },
-    { pos: [-285, 0, -515], canyonWidth: 24, wallHeight: 36, bankingDeg: 14, feature: 'rough_scree' },
-    { pos: [-305, -2, -615], canyonWidth: 24, wallHeight: 38, bankingDeg: -12, feature: 'rough_scree' },
-    { pos: [-275, -4, -715], canyonWidth: 24, wallHeight: 38, bankingDeg: -14, feature: 'rough_scree' },
+    // Sector 2: 200m Monolith Slalom Arena (345 - 860m) — 200m wide obstacle field with optional jump ramps
+    { pos: [-230, 2, -425], canyonWidth: 200, wallHeight: 34, bankingDeg: 0, feature: 'pillar_slalom' },
+    { pos: [-285, 0, -515], canyonWidth: 200, wallHeight: 36, bankingDeg: 0, feature: 'pillar_slalom' },
+    { pos: [-305, -2, -615], canyonWidth: 200, wallHeight: 38, bankingDeg: 0, feature: 'pillar_slalom' },
+    { pos: [-275, -4, -715], canyonWidth: 200, wallHeight: 38, bankingDeg: 0, feature: 'pillar_slalom' },
     { pos: [-220, -4, -810], canyonWidth: 26, wallHeight: 36, bankingDeg: 0, feature: 'normal', checkpoint: true },
 
     // Sector 3: Oasis Boost & Sunscorch Drop (810 - 1300m)

@@ -128,6 +128,8 @@ export class TrackBuilder {
 
   private readonly groundGrid = new Map<string, Tri2D[]>();
   private readonly ceilingGrid = new Map<string, Tri2D[]>();
+  private readonly rampGrid = new Map<string, Tri2D[]>();
+  private readonly obstacles: { x: number; y: number; z: number; radius: number; height: number }[] = [];
 
   constructor(map: MapDefinition) {
     this.biome = map.biome ?? 'desert';
@@ -172,13 +174,32 @@ export class TrackBuilder {
   public sampleGround(x: number, _y: number, z: number): GroundSample {
     const cx = Math.floor(x / CELL_SIZE);
     const cz = Math.floor(z / CELL_SIZE);
-    const tris = this.groundGrid.get(`${cx},${cz}`);
+    const key = `${cx},${cz}`;
+
+    let bestSample: GroundSample | null = null;
+    const tris = this.groundGrid.get(key);
     if (tris) {
       for (let i = 0; i < tris.length; i++) {
         const t = tris[i];
         const yHit = this.barycentricY(x, z, t);
         if (yHit !== null) {
-          return {
+          bestSample = {
+            groundY: yHit,
+            normal: new THREE.Vector3(t.nx, t.ny, t.nz),
+            found: true,
+          };
+          break;
+        }
+      }
+    }
+
+    const rampTris = this.rampGrid.get(key);
+    if (rampTris) {
+      for (let i = 0; i < rampTris.length; i++) {
+        const t = rampTris[i];
+        const yHit = this.barycentricY(x, z, t);
+        if (yHit !== null && (!bestSample || yHit > bestSample.groundY)) {
+          bestSample = {
             groundY: yHit,
             normal: new THREE.Vector3(t.nx, t.ny, t.nz),
             found: true,
@@ -186,6 +207,8 @@ export class TrackBuilder {
         }
       }
     }
+
+    if (bestSample) return bestSample;
 
     // Fallback: nearest slice center
     const nearest = this.findNearestSlice(x, z);
@@ -251,6 +274,34 @@ export class TrackBuilder {
         impactSpeed = Math.max(impactSpeed, vel.y);
         vel.y = -vel.y * 0.25;
         hitWall = true;
+      }
+    }
+
+    // Interior pillar / obstacle collisions (jumpable if pod clears obstacle height)
+    for (let i = 0; i < this.obstacles.length; i++) {
+      const obs = this.obstacles[i];
+      if (pos.y > obs.y + obs.height) continue;
+      const dx = pos.x - obs.x;
+      const dz = pos.z - obs.z;
+      const minDist = obs.radius + radius;
+      const d2 = dx * dx + dz * dz;
+      if (d2 < minDist * minDist && d2 > 1e-6) {
+        const dist = Math.sqrt(d2);
+        const nx = dx / dist;
+        const nz = dz / dist;
+        const push = minDist - dist;
+        pos.x += nx * push;
+        pos.z += nz * push;
+
+        const vInto = vel.x * nx + vel.z * nz;
+        if (vInto < 0) {
+          impactSpeed = Math.max(impactSpeed, -vInto);
+          vel.x -= nx * vInto * 1.3;
+          vel.z -= nz * vInto * 1.3;
+          vel.x *= 0.82;
+          vel.z *= 0.82;
+          hitWall = true;
+        }
       }
     }
 
@@ -475,6 +526,10 @@ export class TrackBuilder {
           } else if (s.feature === 'cliff_drop') {
             wy += bank;
             tmpCol.copy(uFloor > 0.78 ? colCliffRim : colSandstone);
+          } else if (s.feature === 'pillar_slalom') {
+            const trough = uFloor * uFloor * 1.1;
+            wy += trough + bank + noise * 0.25;
+            tmpCol.copy(colGroove).lerp(colDirtEdge, Math.pow(uFloor, 1.4));
           } else {
             // Smooth concave dirt trough + banking
             const trough = uFloor * uFloor * 1.4;
@@ -770,6 +825,172 @@ export class TrackBuilder {
         this.group.add(marker);
       }
     }
+
+    this.buildPillarSlalomProps();
+  }
+
+  private buildPillarSlalomProps(): void {
+    const pal = BIOME_PALETTES[this.biome];
+    const pillarMat = new THREE.MeshStandardMaterial({
+      color: pal.sandstone,
+      flatShading: true,
+      roughness: 0.85,
+    });
+    const ringMat = new THREE.MeshStandardMaterial({
+      color: 0xf59e0b,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 1.4,
+      roughness: 0.3,
+    });
+
+    // Find contiguous pillar_slalom spans where width is wide (>= 120m)
+    let i = 0;
+    while (i < this.slices.length) {
+      if (this.slices[i].feature === 'pillar_slalom' && this.slices[i].canyonWidth >= 120) {
+        const start = i;
+        while (
+          i < this.slices.length &&
+          this.slices[i].feature === 'pillar_slalom' &&
+          this.slices[i].canyonWidth >= 120
+        ) {
+          i++;
+        }
+        const end = i - 1;
+        const span = end - start;
+        if (span < 12) continue;
+
+        // Place 2 optional launch ramps to skip sections of the slalom
+        const rampSpecs = [
+          { idx: start + Math.floor(span * 0.28), latOffset: -24 },
+          { idx: start + Math.floor(span * 0.64), latOffset: 26 },
+        ];
+        for (const spec of rampSpecs) {
+          this.addLaunchRamp(this.slices[spec.idx], spec.latOffset, 18, 30, 8.5);
+        }
+
+        // Populate dense staggered slalom pillars across the ~200m width
+        for (let r = start + 2; r <= end - 2; r += 5) {
+          const s = this.slices[r];
+          const halfUsable = Math.min(82, s.canyonWidth * 0.5 - 12);
+          const cols = 5;
+          for (let c = 0; c < cols; c++) {
+            const baseFrac = (c / (cols - 1)) * 2 - 1; // -1..1
+            const jitter = (hash2D(r * 7 + c, 13) - 0.5) * 24;
+            const d = THREE.MathUtils.clamp(baseFrac * halfUsable + jitter, -halfUsable, halfUsable);
+
+            // Keep ramp approach and immediate landing corridor clear
+            const nearRamp = rampSpecs.some(
+              (rs) => Math.abs(d - rs.latOffset) < 15 && r >= rs.idx - 6 && r <= rs.idx + 12
+            );
+            if (nearRamp) continue;
+
+            const radius = 3.6 + hash2D(r, c * 11) * 2.6;
+            const height = 11 + hash2D(r * 3, c * 17) * 9;
+            const wx = s.center.x + s.right.x * d;
+            const wz = s.center.z + s.right.z * d;
+            const wy = this.sampleGround(wx, s.center.y, wz).groundY;
+
+            const geo = new THREE.CylinderGeometry(radius * 0.72, radius, height, 7);
+            const mesh = new THREE.Mesh(geo, pillarMat);
+            mesh.position.set(wx, wy + height * 0.5 - 0.5, wz);
+            mesh.rotation.y = hash2D(r, c * 23) * Math.PI;
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            this.group.add(mesh);
+
+            const ringGeo = new THREE.CylinderGeometry(radius * 0.92, radius * 0.96, 0.55, 7);
+            const ring = new THREE.Mesh(ringGeo, ringMat);
+            ring.position.set(wx, wy + 2.4, wz);
+            ring.rotation.y = mesh.rotation.y;
+            this.group.add(ring);
+
+            this.obstacles.push({ x: wx, y: wy, z: wz, radius, height });
+          }
+        }
+      } else {
+        i++;
+      }
+    }
+  }
+
+  private addLaunchRamp(
+    s: SampledSlice,
+    lateralOffset: number,
+    width: number,
+    length: number,
+    height: number
+  ): void {
+    const cx = s.center.x + s.right.x * lateralOffset;
+    const cz = s.center.z + s.right.z * lateralOffset;
+    const baseY = this.sampleGround(cx, s.center.y, cz).groundY - 0.2;
+
+    const hw = width * 0.5;
+    const hl = length * 0.5;
+    const fwd = new THREE.Vector3(s.tangent.x, 0, s.tangent.z).normalize();
+    const rgt = s.right;
+
+    // 4 corners of the ramp top surface (entry at -hl, lip at +hl)
+    const p00 = new THREE.Vector3(cx - rgt.x * hw - fwd.x * hl, baseY, cz - rgt.z * hw - fwd.z * hl);
+    const p10 = new THREE.Vector3(cx + rgt.x * hw - fwd.x * hl, baseY, cz + rgt.z * hw - fwd.z * hl);
+    const p01 = new THREE.Vector3(cx - rgt.x * hw + fwd.x * hl, baseY + height, cz - rgt.z * hw + fwd.z * hl);
+    const p11 = new THREE.Vector3(cx + rgt.x * hw + fwd.x * hl, baseY + height, cz + rgt.z * hw + fwd.z * hl);
+    const b01 = new THREE.Vector3(p01.x, baseY, p01.z);
+    const b11 = new THREE.Vector3(p11.x, baseY, p11.z);
+
+    const verts = new Float32Array([
+      // Top ramp slope (2 tris)
+      p00.x, p00.y, p00.z, p10.x, p10.y, p10.z, p01.x, p01.y, p01.z,
+      p10.x, p10.y, p10.z, p11.x, p11.y, p11.z, p01.x, p01.y, p01.z,
+      // Back vertical face
+      p01.x, p01.y, p01.z, p11.x, p11.y, p11.z, b01.x, b01.y, b01.z,
+      p11.x, p11.y, p11.z, b11.x, b11.y, b11.z, b01.x, b01.y, b01.z,
+      // Left side wall
+      p00.x, p00.y, p00.z, p01.x, p01.y, p01.z, b01.x, b01.y, b01.z,
+      // Right side wall
+      p10.x, p10.y, p10.z, b11.x, b11.y, b11.z, p11.x, p11.y, p11.z,
+    ]);
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+    geo.computeVertexNormals();
+
+    const rampMat = new THREE.MeshStandardMaterial({
+      color: 0x1e293b,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.45,
+      flatShading: true,
+      roughness: 0.35,
+      side: THREE.DoubleSide,
+    });
+    const rampMesh = new THREE.Mesh(geo, rampMat);
+    this.group.add(rampMesh);
+
+    // Glowing side rails so the ramp is clearly visible
+    const railMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 2.0,
+    });
+    const slopeLen = Math.hypot(length, height);
+    const pitch = Math.atan2(height, length);
+    const yaw = Math.atan2(-fwd.x, -fwd.z);
+    for (const side of [-1, 1]) {
+      const railGeo = new THREE.BoxGeometry(0.45, 0.5, slopeLen);
+      const rail = new THREE.Mesh(railGeo, railMat);
+      rail.position.set(
+        cx + rgt.x * side * (hw - 0.3),
+        baseY + height * 0.5 + 0.25,
+        cz + rgt.z * side * (hw - 0.3)
+      );
+      rail.rotation.order = 'YXZ';
+      rail.rotation.y = yaw;
+      rail.rotation.x = pitch;
+      this.group.add(rail);
+    }
+
+    // Insert top slope triangles into rampGrid for ground sampling
+    this.insertTriIntoGrid(this.rampGrid, verts, 0, 1, 2);
+    this.insertTriIntoGrid(this.rampGrid, verts, 3, 4, 5);
   }
 
   private buildDecorativeProps(): void {

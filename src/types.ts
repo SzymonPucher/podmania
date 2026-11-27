@@ -25,7 +25,8 @@ export type TrackFeature =
   | 'bridge_deck'
   | 'rough_scree'
   | 'cliff_drop'
-  | 'split_terrace';
+  | 'split_terrace'
+  | 'pillar_slalom';
 
 export type MapBiome = 'desert' | 'volcanic' | 'glacier' | 'skyway' | 'desert_geode';
 
