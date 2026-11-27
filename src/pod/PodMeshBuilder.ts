@@ -911,25 +911,31 @@ export class PodMeshBuilder {
 
     const modFlyingGroup = new THREE.Group();
     const aeroFinMat = new THREE.MeshStandardMaterial({
-      color: 0x10b981,
-      metalness: 0.5,
-      roughness: 0.28,
-      emissive: 0x065f46,
-      emissiveIntensity: 0.7,
+      color: 0xf97316,
+      metalness: 0.45,
+      roughness: 0.32,
+      emissive: 0x7c2d12,
+      emissiveIntensity: 0.45,
     });
+    const finGroup = new THREE.Group();
+    finGroup.position.set(sideSign * 0.43, 0.03, -1.35);
+    finGroup.rotation.z = sideSign * (Math.PI / 4);
+
     const wingGeo = new THREE.BoxGeometry(0.72, 0.045, 1.35);
     wingGeo.rotateY(sideSign * -0.26);
-    wingGeo.rotateZ(sideSign * 0.14);
-    const wingMesh = new THREE.Mesh(wingGeo, mats.steel);
-    wingMesh.position.set(sideSign * 0.78, 0.08, -1.35);
+    const wingMesh = new THREE.Mesh(wingGeo, mats.cabinOrange);
+    wingMesh.position.set(sideSign * 0.36, 0, 0);
     wingMesh.castShadow = true;
-    modFlyingGroup.add(wingMesh);
+    finGroup.add(wingMesh);
+
     const tipGeo = new THREE.BoxGeometry(0.12, 0.055, 1.05);
     tipGeo.rotateY(sideSign * -0.26);
-    tipGeo.rotateZ(sideSign * 0.14);
     const tipMesh = new THREE.Mesh(tipGeo, aeroFinMat);
-    tipMesh.position.set(sideSign * 1.12, 0.13, -1.42);
-    modFlyingGroup.add(tipMesh);
+    tipMesh.position.set(sideSign * 0.70, 0, -0.07);
+    tipMesh.castShadow = true;
+    finGroup.add(tipMesh);
+
+    modFlyingGroup.add(finGroup);
     modFlyingGroup.visible = false;
     root.add(modFlyingGroup);
 
@@ -1547,7 +1553,7 @@ export class PodMeshBuilder {
           id: `${prefix}_mod_flying`,
           node: eng.modFlyingGroup,
           parentKind,
-          comOffsetLocal: new THREE.Vector3(side * 0.85, 0.1, -1.38),
+          comOffsetLocal: new THREE.Vector3(side * 0.72, 0.3, -1.38),
           radius: 0.28,
           mass: 28,
           restitution: 0.42,
