@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { PodTelemetry } from '../types';
+import { POD_CONFIG } from './PodConfig';
 
 interface EngineVisualRefs {
   root: THREE.Group;
@@ -61,8 +62,10 @@ export class PodMeshBuilder {
 
   private flapFlareLeft = 0;
   private flapFlareRight = 0;
-  private engineDamperLift = 0;
-  private damperGlideBlend = 0;
+  private visualTiltBlend = 0;
+  private readonly normalOuterColor = new THREE.Color(0xff7711);
+  private readonly boostOuterColor = new THREE.Color(0x38bdf8);
+  private readonly overloadOuterColor = new THREE.Color(0xef4444);
 
   constructor() {
     this.podRoot.rotation.order = 'YXZ';
@@ -115,33 +118,34 @@ export class PodMeshBuilder {
   }
 
   public update(t: PodTelemetry, dt: number, elapsedTime: number): void {
-    const glideRate = t.damperFiring ? 3 : 4;
-    this.damperGlideBlend = THREE.MathUtils.lerp(
-      this.damperGlideBlend,
-      t.damperFiring ? 1 : 0,
-      1 - Math.exp(-glideRate * dt)
+    this.visualTiltBlend = THREE.MathUtils.lerp(
+      this.visualTiltBlend,
+      t.engineTilt,
+      1 - Math.exp(-22 * dt)
     );
 
     this.podRoot.position.copy(t.pos);
     this.podRoot.rotation.set(t.pitch, t.yaw, t.roll, 'YXZ');
 
-    // Subtle engine vibration, high damper lift (30 deg pitch-up) & dangling cabin behind
-    this.engineDamperLift = this.damperGlideBlend * 1.85;
-    const vib = (Math.abs(t.pLeft) + Math.abs(t.pRight)) * 0.008;
+    // Spacebar rotates the twin engines upwards to ~40 degrees around their rear mount
+    const overloadVib = t.airborneOverload ? 0.055 : 0;
+    const vib = (Math.abs(t.pLeft) + Math.abs(t.pRight)) * 0.008 + overloadVib;
+    const mountClearanceLift = this.visualTiltBlend * 0.35;
     this.enginesGroup.position.set(
       (Math.random() - 0.5) * vib,
-      this.engineDamperLift + (Math.random() - 0.5) * vib,
+      mountClearanceLift + (Math.random() - 0.5) * vib,
       0
     );
-    this.enginesGroup.rotation.x = this.damperGlideBlend * THREE.MathUtils.degToRad(30);
+    this.enginesGroup.rotation.x =
+      this.visualTiltBlend * THREE.MathUtils.degToRad(POD_CONFIG.engineTiltMaxDeg);
 
     this.cockpitGroup.position.set(
       t.cockpitYawOffset * 1.4,
-      0.85 - this.damperGlideBlend * 0.75 + t.cockpitVertOffset,
+      0.85 + t.cockpitVertOffset,
       COCKPIT_BASE_Z
     );
     this.cockpitGroup.rotation.set(
-      -this.damperGlideBlend * 0.18,
+      -this.visualTiltBlend * 0.06,
       t.cockpitYawOffset,
       t.cockpitRollOffset,
       'YXZ'
@@ -160,10 +164,33 @@ export class PodMeshBuilder {
       1 - Math.exp(-14 * dt)
     );
 
-    this.updateEngineVisuals(this.leftEngine, t.pLeft, this.flapFlareLeft, t.damperFiring, dt, elapsedTime);
-    this.updateEngineVisuals(this.rightEngine, t.pRight, this.flapFlareRight, t.damperFiring, dt, elapsedTime);
+    this.updateEngineVisuals(
+      this.leftEngine,
+      t.pLeft,
+      this.flapFlareLeft,
+      t.landingBoost,
+      t.airborneOverload,
+      dt,
+      elapsedTime
+    );
+    this.updateEngineVisuals(
+      this.rightEngine,
+      t.pRight,
+      this.flapFlareRight,
+      t.landingBoost,
+      t.airborneOverload,
+      dt,
+      elapsedTime
+    );
 
-    this.damperLight.intensity = t.damperFiring ? 18 : 0;
+    // Glow under pod only during vectored thrust / landing boost overdrive (never from Space alone)
+    const vectoredGlow =
+      t.landingBoost > 0.02
+        ? t.landingBoost * 22
+        : !t.isGrounded && t.engineTilt > 0.3 && t.pLeft + t.pRight > 0.6 && !t.airborneOverload
+          ? (t.pLeft + t.pRight) * 0.5 * t.engineTilt * 12
+          : 0;
+    this.damperLight.intensity = vectoredGlow;
 
     // Ensure matrices are current before computing local attachment points
     this.podRoot.updateMatrixWorld(true);
@@ -202,12 +229,13 @@ export class PodMeshBuilder {
     eng: EngineVisualRefs,
     power: number,
     flare: number,
-    damperFiring: boolean,
+    landingBoost: number,
+    airborneOverload: boolean,
     dt: number,
     elapsedTime: number
   ): void {
     // Spin 28-blade intake fan
-    eng.fanGroup.rotation.z += dt * (4.0 + Math.abs(power) * 32.0);
+    eng.fanGroup.rotation.z += dt * (4.0 + Math.abs(power) * 32.0 + landingBoost * 24.0);
 
     // Flare forward yellow airbrake flaps on reverse (-30%)
     const flareRad = flare * THREE.MathUtils.degToRad(26);
@@ -215,16 +243,30 @@ export class PodMeshBuilder {
       f.pivot.setRotationFromAxisAngle(f.axis, f.sign * flareRad);
     }
 
-    // Rear exhaust jet plumes
+    // Rear exhaust jet plumes (supercharged during landing vector boost, sputtering on mid-air overload)
     const posP = Math.max(0, power);
-    if (posP > 0.02) {
+    const effPlume = Math.max(posP, landingBoost * 0.85);
+    if (effPlume > 0.02) {
       eng.exhaustCore.visible = true;
       eng.exhaustOuter.visible = true;
-      const flicker = 0.9 + Math.sin(elapsedTime * 45 * Math.PI * 2) * 0.12;
-      const lenScale = (0.35 + posP * 1.45) * flicker;
-      const radScale = 0.65 + posP * 0.45;
+      const sputter = airborneOverload ? 0.65 + Math.random() * 0.7 : 1.0;
+      const flicker = (0.9 + Math.sin(elapsedTime * 45 * Math.PI * 2) * 0.12) * sputter;
+      const boostScale = 1 + landingBoost * 0.75;
+      const lenScale = (0.35 + effPlume * 1.45) * flicker * boostScale;
+      const radScale = (0.65 + effPlume * 0.45) * (1 + landingBoost * 0.3);
       eng.exhaustCore.scale.set(radScale, lenScale * 0.85, radScale);
       eng.exhaustOuter.scale.set(radScale * 1.15, lenScale, radScale * 1.15);
+
+      const outerMat = eng.exhaustOuter.material as THREE.MeshBasicMaterial;
+      if (airborneOverload) {
+        outerMat.color.copy(this.overloadOuterColor);
+      } else if (landingBoost > 0.02) {
+        outerMat.color
+          .copy(this.normalOuterColor)
+          .lerp(this.boostOuterColor, Math.min(1, landingBoost * 1.2));
+      } else {
+        outerMat.color.copy(this.normalOuterColor);
+      }
     } else {
       eng.exhaustCore.visible = false;
       eng.exhaustOuter.visible = false;
@@ -239,12 +281,8 @@ export class PodMeshBuilder {
       eng.reversePuff.visible = false;
     }
 
-    // Ventral damper cone
-    eng.damperCone.visible = damperFiring;
-    if (damperFiring) {
-      const pulse = 0.88 + Math.sin(elapsedTime * 55) * 0.14;
-      eng.damperCone.scale.set(1, pulse, 1);
-    }
+    // Spacebar only tilts main engines (no separate ventral thruster jet)
+    eng.damperCone.visible = false;
   }
 
   private createMaterials() {

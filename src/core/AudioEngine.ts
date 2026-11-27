@@ -69,7 +69,14 @@ export class AudioEngine {
     return this.muted;
   }
 
-  public updateEngines(pLeft: number, pRight: number, speedMs: number, damperFiring: boolean, active: boolean): void {
+  public updateEngines(
+    pLeft: number,
+    pRight: number,
+    speedMs: number,
+    landingBoost: number,
+    airborneOverload: boolean,
+    active: boolean
+  ): void {
     if (!this.initialized || !this.ctx) return;
     const now = this.ctx.currentTime;
 
@@ -80,17 +87,20 @@ export class AudioEngine {
       return;
     }
 
-    const speedFactor = Math.min(1, speedMs / 80);
+    const speedFactor = Math.min(1.35, speedMs / 80);
     if (this.leftVoice) {
-      this.updateVoice(this.leftVoice, pLeft, speedFactor, now);
+      this.updateVoice(this.leftVoice, pLeft, speedFactor, landingBoost, airborneOverload, now);
     }
     if (this.rightVoice) {
-      this.updateVoice(this.rightVoice, pRight, speedFactor, now);
+      this.updateVoice(this.rightVoice, pRight, speedFactor, landingBoost, airborneOverload, now);
     }
 
+    // Afterburner / overload jet layer (Space alone makes no thruster roar)
     if (this.damperGain && this.damperFilter) {
-      this.damperGain.gain.setTargetAtTime(damperFiring ? 0.32 : 0, now, 0.025);
-      this.damperFilter.frequency.setTargetAtTime(damperFiring ? 560 : 380, now, 0.04);
+      const jetGain = landingBoost > 0.02 ? landingBoost * 0.34 : airborneOverload ? 0.22 : 0;
+      const jetFreq = airborneOverload ? 920 : 520 + landingBoost * 420;
+      this.damperGain.gain.setTargetAtTime(jetGain, now, 0.03);
+      this.damperFilter.frequency.setTargetAtTime(jetFreq, now, 0.04);
     }
   }
 
@@ -128,20 +138,27 @@ export class AudioEngine {
     });
   }
 
-  public playPerfectDamp(): void {
+  public playPerfectDamp(isHugeBoost = true): void {
     if (!this.initialized || !this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(280, now);
-    osc.frequency.exponentialRampToValueAtTime(760, now + 0.14);
-    gain.gain.setValueAtTime(0.24, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
-    osc.connect(gain);
-    gain.connect(this.masterGain);
-    osc.start(now);
-    osc.stop(now + 0.24);
+    const freqs = isHugeBoost ? [260, 520] : [260];
+    freqs.forEach((startFreq, idx) => {
+      if (!this.ctx || !this.masterGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = idx === 0 ? 'sawtooth' : 'triangle';
+      osc.frequency.setValueAtTime(startFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(
+        isHugeBoost ? startFreq * 3.1 : 620,
+        now + (isHugeBoost ? 0.28 : 0.14)
+      );
+      gain.gain.setValueAtTime(isHugeBoost ? 0.22 : 0.16, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + (isHugeBoost ? 0.38 : 0.2));
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.start(now);
+      osc.stop(now + (isHugeBoost ? 0.4 : 0.22));
+    });
   }
 
   public playImpact(severity: number): void {
@@ -161,13 +178,31 @@ export class AudioEngine {
     osc.stop(now + 0.28);
   }
 
-  private updateVoice(voice: TurbineVoice, power: number, speedFactor: number, now: number): void {
+  private updateVoice(
+    voice: TurbineVoice,
+    power: number,
+    speedFactor: number,
+    landingBoost: number,
+    airborneOverload: boolean,
+    now: number
+  ): void {
     const absP = Math.abs(power);
-    const baseFreq = 46 + absP * 68 + speedFactor * 36 + (power < 0 ? 18 : 0);
+    const overloadJitter = airborneOverload ? (Math.random() - 0.5) * 28 : 0;
+    const baseFreq =
+      46 +
+      absP * 68 +
+      speedFactor * 36 +
+      landingBoost * 34 +
+      (power < 0 ? 18 : 0) +
+      overloadJitter;
     voice.saw.frequency.setTargetAtTime(baseFreq, now, 0.03);
     voice.tri.frequency.setTargetAtTime(baseFreq * 1.98, now, 0.03);
-    voice.noiseFilter.frequency.setTargetAtTime(220 + absP * 1100 + speedFactor * 500, now, 0.04);
-    const targetGain = 0.07 + absP * 0.14 + speedFactor * 0.04;
+    voice.noiseFilter.frequency.setTargetAtTime(
+      220 + absP * 1100 + speedFactor * 500 + landingBoost * 650,
+      now,
+      0.04
+    );
+    const targetGain = 0.07 + absP * 0.14 + speedFactor * 0.04 + landingBoost * 0.08;
     voice.gain.gain.setTargetAtTime(targetGain, now, 0.04);
   }
 

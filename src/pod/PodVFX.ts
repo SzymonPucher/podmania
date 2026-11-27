@@ -27,9 +27,11 @@ export class PodVFX {
 
   private readonly shockRing: THREE.Mesh;
   private shockAge = -1;
+  private overloadSparkAccum = 0;
 
   private readonly dummy = new THREE.Object3D();
   private readonly tmpRight = new THREE.Vector3();
+  private readonly tmpSparkPos = new THREE.Vector3();
 
   constructor() {
     const dustGeo = new THREE.DodecahedronGeometry(0.45, 0);
@@ -136,6 +138,26 @@ export class PodVFX {
   }
 
   public update(t: PodTelemetry, dt: number): void {
+    // Mid-air engine overload sparks when player applies thrust high up
+    if (t.airborneOverload) {
+      this.overloadSparkAccum += dt * 38;
+      this.tmpRight.set(Math.cos(t.yaw), 0, -Math.sin(t.yaw));
+      const fwdX = -Math.sin(t.yaw);
+      const fwdZ = -Math.cos(t.yaw);
+      while (this.overloadSparkAccum >= 1) {
+        this.overloadSparkAccum -= 1;
+        const side = Math.random() < 0.5 ? -1.35 : 1.35;
+        this.tmpSparkPos.set(
+          t.pos.x + this.tmpRight.x * side + fwdX * 1.5,
+          t.pos.y + 0.2,
+          t.pos.z + this.tmpRight.z * side + fwdZ * 1.5
+        );
+        this.triggerSparks(this.tmpSparkPos, 2);
+      }
+    } else {
+      this.overloadSparkAccum = 0;
+    }
+
     // Spawn twin dust ribbons beneath engines when hovering close to dirt
     if (t.clearance < 3.0 && t.speedMs > 8) {
       this.dustSpawnAccum += dt * (20 + t.speedMs * 0.8);

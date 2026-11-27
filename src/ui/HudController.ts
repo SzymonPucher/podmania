@@ -1,5 +1,6 @@
 import type { StorageManager } from '../core/StorageManager';
 import { MAP_REGISTRY } from '../maps/mapRegistry';
+import { POD_CONFIG } from '../pod/PodConfig';
 import type {
   InputSnapshot,
   MapDefinition,
@@ -206,19 +207,25 @@ export class HudController {
 
   public showEventBadge(
     text: string,
-    kind: 'perfect_damp' | 'hard_impact'
+    kind: 'vector_boost' | 'perfect_damp' | 'hard_impact'
   ): void {
+    this.eventBadgeEl.dataset.livePrompt = '0';
     this.eventBadgeEl.textContent = text;
-    this.eventBadgeEl.className = `event-badge ${
-      kind === 'perfect_damp' ? 'badge-perfect-damp' : 'badge-hard-impact'
-    }`;
+    const badgeClass =
+      kind === 'vector_boost'
+        ? 'badge-vector-boost'
+        : kind === 'perfect_damp'
+          ? 'badge-perfect-damp'
+          : 'badge-hard-impact';
+    this.eventBadgeEl.className = `event-badge ${badgeClass}`;
 
     if (this.badgeHideTimeout !== null) {
       window.clearTimeout(this.badgeHideTimeout);
     }
     this.badgeHideTimeout = window.setTimeout(() => {
       this.eventBadgeEl.classList.add('hidden');
-    }, 1300);
+      this.badgeHideTimeout = null;
+    }, 1450);
   }
 
   public showFinishScreen(params: {
@@ -269,28 +276,57 @@ export class HudController {
       this.hullBarEl.classList.add('hull-low');
     }
 
-    // Damper bar
-    const dampPct = Math.round(t.damperCharge * 100);
-    this.damperPctEl.textContent = t.damperCooldown > 0 ? 'COOL' : `${dampPct}%`;
-    this.damperBarEl.style.width = `${dampPct}%`;
-    this.damperBarEl.style.background =
-      t.damperCooldown > 0 ? '#f87171' : t.damperFiring ? '#34d399' : '#38bdf8';
+    // Engine Tilt & Vector Boost bar
+    if (t.landingBoost > 0.04) {
+      this.damperPctEl.textContent = 'BOOST!';
+      this.damperBarEl.style.width = `${Math.round(t.landingBoost * 100)}%`;
+      this.damperBarEl.style.background = '#fbbf24';
+    } else {
+      const tiltDeg = Math.round(t.engineTilt * POD_CONFIG.engineTiltMaxDeg);
+      this.damperPctEl.textContent = `${tiltDeg}°`;
+      this.damperBarEl.style.width = `${Math.round(t.engineTilt * 100)}%`;
+      const inRotateZone =
+        !t.isGrounded && t.timeToImpact <= POD_CONFIG.spaceRotateWindowSec;
+      const tiltedEarlyInAir =
+        !t.isGrounded &&
+        t.engineTilt > 0.2 &&
+        t.timeToImpact > POD_CONFIG.spaceRotateWindowSec;
+      this.damperBarEl.style.background = tiltedEarlyInAir
+        ? '#f59e0b'
+        : inRotateZone && t.engineTilt > 0.25
+          ? '#34d399'
+          : '#38bdf8';
+    }
 
-    // Contextual landing damper prompt while falling from a jump
-    if (
-      !t.isGrounded &&
-      t.airTime > 0.35 &&
-      t.vel.y < -9.5 &&
-      !t.damperFiring &&
-      this.badgeHideTimeout === null
-    ) {
-      this.eventBadgeEl.textContent = 'HOLD SPACE — DAMP LANDING';
-      this.eventBadgeEl.className = 'event-badge badge-damp-prompt';
-    } else if (
-      this.badgeHideTimeout === null &&
-      this.eventBadgeEl.classList.contains('badge-damp-prompt')
-    ) {
-      this.eventBadgeEl.classList.add('hidden');
+    // Contextual airborne sequence coaching & overload warning
+    if (this.badgeHideTimeout === null) {
+      if (t.airborneOverload) {
+        this.eventBadgeEl.dataset.livePrompt = '1';
+        this.eventBadgeEl.textContent = 'AIR OVERLOAD — CUT THRUST!';
+        this.eventBadgeEl.className = 'event-badge badge-overload-warn';
+      } else if (!t.isGrounded && t.airTime > 0.28 && t.vel.y < -6.5) {
+        if (
+          t.timeToImpact <= POD_CONFIG.thrustFlareWindowSec &&
+          t.engineTilt >= 0.35
+        ) {
+          this.eventBadgeEl.dataset.livePrompt = '1';
+          this.eventBadgeEl.textContent = 'F + K — FULL THRUST NOW!';
+          this.eventBadgeEl.className = 'event-badge badge-vector-prompt';
+        } else if (
+          t.timeToImpact <= POD_CONFIG.spaceRotateWindowSec &&
+          !input.spaceHeld
+        ) {
+          this.eventBadgeEl.dataset.livePrompt = '1';
+          this.eventBadgeEl.textContent = 'SPACE — TILT ENGINES 40°';
+          this.eventBadgeEl.className = 'event-badge badge-damp-prompt';
+        } else if (this.eventBadgeEl.dataset.livePrompt === '1') {
+          this.eventBadgeEl.dataset.livePrompt = '0';
+          this.eventBadgeEl.classList.add('hidden');
+        }
+      } else if (this.eventBadgeEl.dataset.livePrompt === '1') {
+        this.eventBadgeEl.dataset.livePrompt = '0';
+        this.eventBadgeEl.classList.add('hidden');
+      }
     }
 
     // Engine bars & keycaps

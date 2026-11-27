@@ -68,11 +68,14 @@ export class ChaseCamera {
 
     camera.lookAt(this.currentLook);
 
-    // Dynamic speed-driven FOV (62 deg at rest -> 84 deg at 288 km/h)
+    // Dynamic speed-driven FOV (62 deg at rest -> 84 deg at 288 km/h -> 93 deg during vector boost!)
     const speedFrac = THREE.MathUtils.clamp(t.speedMs / 80, 0, 1);
-    const targetFov = THREE.MathUtils.lerp(62, 84, speedFrac);
+    const overSpeedFrac = THREE.MathUtils.clamp((t.speedMs - 80) / 34, 0, 1);
+    const targetFov =
+      THREE.MathUtils.lerp(62, 84, speedFrac) +
+      Math.max(overSpeedFrac, t.landingBoost * 0.75) * 9.0;
     if (Math.abs(camera.fov - targetFov) > 0.05) {
-      camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 1 - Math.exp(-7 * dt));
+      camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 1 - Math.exp(-7.5 * dt));
       camera.updateProjectionMatrix();
     }
   }

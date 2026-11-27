@@ -81,6 +81,13 @@ export interface InputSnapshot {
   spaceHeld: boolean;
 }
 
+export type LandingEventKind =
+  | 'none'
+  | 'vector_boost'
+  | 'damped_landing'
+  | 'hard_impact'
+  | 'wall_scrape';
+
 export interface PodTelemetry {
   pos: THREE.Vector3;
   vel: THREE.Vector3;
@@ -96,15 +103,23 @@ export interface PodTelemetry {
   clearance: number;
   isGrounded: boolean;
   airTime: number;
-  damperCharge: number;
-  damperCooldown: number;
-  damperFiring: boolean;
+  /** Normalized upward engine rotation [0..1], where 1.0 = ~40 degrees */
+  engineTilt: number;
+  /** Active post-landing overdrive boost [0..1] */
+  landingBoost: number;
+  /** True when applying engine thrust high in the air (damaging hull) */
+  airborneOverload: boolean;
+  /** Estimated seconds until touchdown while descending (Infinity when grounded/ascending) */
+  timeToImpact: number;
+  /** Multiplier [0..1] reflecting whether player stayed off throttle in mid-air */
+  coastDiscipline: number;
   hullIntegrity: number;
   cockpitYawOffset: number;
   cockpitRollOffset: number;
   cockpitVertOffset: number;
-  lastLandingEvent: 'none' | 'perfect_damp' | 'hard_impact' | 'wall_scrape';
+  lastLandingEvent: LandingEventKind;
   lastLandingDamage: number;
+  lastLandingBoostKmh: number;
 }
 
 export interface GroundSample {

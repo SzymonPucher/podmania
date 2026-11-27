@@ -197,14 +197,14 @@ class PodManiaApp {
     this.raceState = 'MENU';
     this.hud.renderMapMenu(this.storage);
     this.hud.setState('MENU');
-    this.audio.updateEngines(0, 0, 0, false, false);
+    this.audio.updateEngines(0, 0, 0, 0, false, false);
   }
 
   private handleEscape(): void {
     if (this.raceState === 'RACING') {
       this.raceState = 'PAUSED';
       this.hud.setState('PAUSED');
-      this.audio.updateEngines(0, 0, 0, false, false);
+      this.audio.updateEngines(0, 0, 0, 0, false, false);
     } else if (this.raceState === 'PAUSED') {
       this.raceState = 'RACING';
       this.hud.setState('RACING');
@@ -300,10 +300,22 @@ class PodManiaApp {
         this.accumulator -= FIXED_DT;
 
         const st = this.physics.state;
-        if (st.lastLandingEvent === 'perfect_damp') {
+        if (st.airborneOverload) {
+          this.chaseCam.addTrauma(FIXED_DT * 1.4);
+        }
+
+        if (st.lastLandingEvent === 'vector_boost') {
           this.podVfx.triggerShockwave(st.pos, st.groundHeight);
-          this.hud.showEventBadge('PERFECT DAMP!', 'perfect_damp');
-          this.audio.playPerfectDamp();
+          this.chaseCam.addTrauma(0.22);
+          this.hud.showEventBadge(
+            `VECTOR BOOST! +${st.lastLandingBoostKmh} KM/H`,
+            'vector_boost'
+          );
+          this.audio.playPerfectDamp(true);
+        } else if (st.lastLandingEvent === 'damped_landing') {
+          this.podVfx.triggerShockwave(st.pos, st.groundHeight);
+          this.hud.showEventBadge('DAMPED LANDING', 'perfect_damp');
+          this.audio.playPerfectDamp(false);
         } else if (st.lastLandingEvent === 'hard_impact') {
           this.podVfx.triggerSparks(st.pos, 32);
           this.chaseCam.addTrauma(Math.min(1, st.lastLandingDamage / 30));
@@ -360,7 +372,8 @@ class PodManiaApp {
         st.pLeft,
         st.pRight,
         st.speedMs,
-        st.damperFiring,
+        st.landingBoost,
+        st.airborneOverload,
         this.raceState === 'RACING' || this.raceState === 'COUNTDOWN'
       );
       this.hud.updateTelemetry(
