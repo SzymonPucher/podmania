@@ -42,18 +42,18 @@ export const MAP2_CRIMSON_RIFT: MapDefinition = {
     { pos: [245, -20, -1560], canyonWidth: 22, wallHeight: 34, bankingDeg: -14, feature: 'cave' },
     { pos: [240, -18, -1660], canyonWidth: 24, wallHeight: 36, bankingDeg: -8, feature: 'cave', checkpoint: true },
 
-    // Sector 5: Caldera Ridge & Thermal Plunge (1720 - 2240m)
+    // Sector 5: Caldera Ridge & Cliff Plunge (1720 - 2240m)
     { pos: [200, -14, -1760], canyonWidth: 32, wallHeight: 40, bankingDeg: 0, feature: 'ridge_split' },
     { pos: [150, -10, -1860], canyonWidth: 32, wallHeight: 40, bankingDeg: 0, feature: 'ridge_split' },
     { pos: [105, -6, -1955], canyonWidth: 24, wallHeight: 38, bankingDeg: 0, feature: 'magma_vent' },
-    { pos: [65, -4, -2045], canyonWidth: 24, wallHeight: 36, bankingDeg: 0, feature: 'jump_lip' },
-    { pos: [30, -34, -2135], canyonWidth: 30, wallHeight: 54, bankingDeg: 0, feature: 'chasm_floor' },
-    { pos: [5, -26, -2225], canyonWidth: 28, wallHeight: 48, bankingDeg: 0, feature: 'landing_slope', checkpoint: true },
+    { pos: [65, -4, -2045], canyonWidth: 24, wallHeight: 36, bankingDeg: 0, feature: 'cliff_drop' },
+    { pos: [30, -46, -2135], canyonWidth: 30, wallHeight: 62, bankingDeg: 0, feature: 'chasm_floor' },
+    { pos: [5, -36, -2225], canyonWidth: 28, wallHeight: 52, bankingDeg: 0, feature: 'landing_slope', checkpoint: true },
 
     // Sector 6: Basalt Sprint to Finish (2225 - 2600m)
-    { pos: [-10, -28, -2325], canyonWidth: 26, wallHeight: 46, bankingDeg: -8, feature: 'normal' },
-    { pos: [-5, -28, -2425], canyonWidth: 26, wallHeight: 46, bankingDeg: 8, feature: 'magma_vent' },
-    { pos: [10, -28, -2525], canyonWidth: 28, wallHeight: 44, bankingDeg: 0, feature: 'finish_basin' },
-    { pos: [15, -28, -2620], canyonWidth: 30, wallHeight: 42, bankingDeg: 0, feature: 'finish_basin' },
+    { pos: [-10, -38, -2325], canyonWidth: 26, wallHeight: 50, bankingDeg: -8, feature: 'normal' },
+    { pos: [-5, -38, -2425], canyonWidth: 26, wallHeight: 50, bankingDeg: 8, feature: 'magma_vent' },
+    { pos: [10, -38, -2525], canyonWidth: 28, wallHeight: 48, bankingDeg: 0, feature: 'finish_basin' },
+    { pos: [15, -38, -2620], canyonWidth: 30, wallHeight: 46, bankingDeg: 0, feature: 'finish_basin' },
   ],
 };

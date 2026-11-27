@@ -28,11 +28,11 @@ export const MAP4_ZENITH_SKYWAY: MapDefinition = {
     { pos: [215, -20, -700], canyonWidth: 26, wallHeight: 12, bankingDeg: 10, feature: 'bridge_deck' },
     { pos: [295, -20, -770], canyonWidth: 30, wallHeight: 18, bankingDeg: 0, feature: 'normal', checkpoint: true },
 
-    // Sector 3: Twin Skyway Split (770 - 1240m)
-    { pos: [365, -20, -845], canyonWidth: 34, wallHeight: 24, bankingDeg: 0, feature: 'ridge_split' },
-    { pos: [415, -20, -935], canyonWidth: 34, wallHeight: 24, bankingDeg: 0, feature: 'ridge_split' },
-    { pos: [435, -20, -1035], canyonWidth: 34, wallHeight: 24, bankingDeg: 0, feature: 'ridge_split' },
-    { pos: [425, -20, -1140], canyonWidth: 26, wallHeight: 12, bankingDeg: 0, feature: 'bridge_deck', checkpoint: true },
+    // Sector 3: Twin-Tier Skyway Terrace (770 - 1240m) — 56m wide split; left terrace is +12m higher and ends in a drop
+    { pos: [365, -20, -845], canyonWidth: 56, wallHeight: 24, bankingDeg: 0, feature: 'split_terrace' },
+    { pos: [415, -20, -935], canyonWidth: 56, wallHeight: 24, bankingDeg: 0, feature: 'split_terrace' },
+    { pos: [435, -20, -1035], canyonWidth: 56, wallHeight: 24, bankingDeg: 0, feature: 'split_terrace' },
+    { pos: [425, -22, -1140], canyonWidth: 34, wallHeight: 16, bankingDeg: 0, feature: 'landing_slope', checkpoint: true },
 
     // Sector 4: Ion Catapult & Spire Drop (1140 - 1680m)
     { pos: [395, -20, -1240], canyonWidth: 24, wallHeight: 12, bankingDeg: 0, feature: 'boost_pad' },

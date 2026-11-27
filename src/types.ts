@@ -23,7 +23,9 @@ export type TrackFeature =
   | 'sand_dunes'
   | 'ridge_split'
   | 'bridge_deck'
-  | 'rough_scree';
+  | 'rough_scree'
+  | 'cliff_drop'
+  | 'split_terrace';
 
 export type MapBiome = 'desert' | 'volcanic' | 'glacier' | 'skyway' | 'desert_geode';
 

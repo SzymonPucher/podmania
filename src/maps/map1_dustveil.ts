@@ -42,18 +42,18 @@ export const MAP1_DUSTVEIL: MapDefinition = {
     { pos: [120, 1, -1445], canyonWidth: 28, wallHeight: 36, bankingDeg: 0, feature: 'landing_slope' },
     { pos: [45, -7, -1505], canyonWidth: 26, wallHeight: 34, bankingDeg: 6, feature: 'landing_slope', checkpoint: true },
 
-    // Sector 5: Abyssal Plunge (1640 - 2120m) — fast downhill chute -> cliff lip -> 26m deep sunken basin
+    // Sector 5: Abyssal Cliff Plunge (1640 - 2120m) — fast downhill chute -> sheer cliff -> 44m deep sunken basin
     { pos: [-25, -14, -1580], canyonWidth: 24, wallHeight: 38, bankingDeg: 8, feature: 'normal' },
-    { pos: [-75, -21, -1675], canyonWidth: 22, wallHeight: 40, bankingDeg: 0, feature: 'normal' },
-    { pos: [-110, -24, -1775], canyonWidth: 22, wallHeight: 38, bankingDeg: 0, feature: 'jump_lip' },
-    { pos: [-145, -56, -1870], canyonWidth: 28, wallHeight: 54, bankingDeg: 0, feature: 'chasm_floor' },
-    { pos: [-180, -47, -1965], canyonWidth: 30, wallHeight: 52, bankingDeg: 0, feature: 'landing_slope' },
-    { pos: [-215, -56, -2060], canyonWidth: 28, wallHeight: 50, bankingDeg: -4, feature: 'landing_slope', checkpoint: true },
+    { pos: [-75, -18, -1675], canyonWidth: 24, wallHeight: 40, bankingDeg: 0, feature: 'normal' },
+    { pos: [-110, -20, -1775], canyonWidth: 24, wallHeight: 38, bankingDeg: 0, feature: 'cliff_drop' },
+    { pos: [-145, -64, -1870], canyonWidth: 30, wallHeight: 62, bankingDeg: 0, feature: 'chasm_floor' },
+    { pos: [-180, -54, -1965], canyonWidth: 30, wallHeight: 56, bankingDeg: 0, feature: 'landing_slope' },
+    { pos: [-215, -62, -2060], canyonWidth: 28, wallHeight: 54, bankingDeg: -4, feature: 'landing_slope', checkpoint: true },
 
     // Sector 6: Dustveil Sprint (2120 - 2480m) — sweeping monolith chicane into Finish Gate
-    { pos: [-240, -58, -2160], canyonWidth: 25, wallHeight: 50, bankingDeg: -10, feature: 'normal' },
-    { pos: [-215, -58, -2265], canyonWidth: 24, wallHeight: 52, bankingDeg: 12, feature: 'normal' },
-    { pos: [-175, -58, -2365], canyonWidth: 26, wallHeight: 50, bankingDeg: 0, feature: 'finish_basin' },
-    { pos: [-160, -58, -2470], canyonWidth: 30, wallHeight: 44, bankingDeg: 0, feature: 'finish_basin' },
+    { pos: [-240, -64, -2160], canyonWidth: 25, wallHeight: 54, bankingDeg: -10, feature: 'normal' },
+    { pos: [-215, -64, -2265], canyonWidth: 24, wallHeight: 54, bankingDeg: 12, feature: 'normal' },
+    { pos: [-175, -64, -2365], canyonWidth: 26, wallHeight: 52, bankingDeg: 0, feature: 'finish_basin' },
+    { pos: [-160, -64, -2470], canyonWidth: 30, wallHeight: 46, bankingDeg: 0, feature: 'finish_basin' },
   ],
 };

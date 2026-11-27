@@ -326,7 +326,7 @@ export class TrackBuilder {
   }
 
   private buildTerrainMesh(): void {
-    const lateralSteps = 24;
+    const lateralSteps = 32;
     const cols = lateralSteps + 1;
     const rows = this.slices.length;
 
@@ -353,6 +353,7 @@ export class TrackBuilder {
     const colBridgeDeck = new THREE.Color(0x475569);
     const colBridgeEdge = new THREE.Color(0xc78114);
     const colScreeDark = new THREE.Color(0x5c4738);
+    const colCliffRim = new THREE.Color(0xd97706);
     const tmpCol = new THREE.Color();
 
     for (let r = 0; r < rows; r++) {
@@ -362,7 +363,8 @@ export class TrackBuilder {
         s.feature === 'jump_lip' ||
         s.feature === 'landing_slope' ||
         s.feature === 'boost_pad' ||
-        s.feature === 'bridge_deck';
+        s.feature === 'bridge_deck' ||
+        s.feature === 'cliff_drop';
       const isChasm = s.feature === 'chasm_floor';
 
       for (let c = 0; c < cols; c++) {
@@ -427,6 +429,23 @@ export class TrackBuilder {
             const boulders = Math.sin(wx * 0.35) * Math.cos(wz * 0.35) * 0.55;
             wy += trough + bank + noise * 0.7 + boulders;
             tmpCol.copy(colScreeDark).lerp(colDirtEdge, 0.35 + noise * 0.25);
+          } else if (s.feature === 'split_terrace') {
+            // Left half (d < 0) is elevated +12m above right half (d > 0) with a steep droppable middle step
+            const tStep = THREE.MathUtils.clamp((2.2 - d) / 4.4, 0, 1);
+            const terraceH = tStep * tStep * (3 - 2 * tStep) * 12.0;
+            const subU = Math.abs(Math.abs(d) - halfW * 0.5) / (halfW * 0.5);
+            const subTrough = subU * subU * 0.65;
+            wy += terraceH + subTrough + bank * 0.4;
+            if (tStep > 0.08 && tStep < 0.92) {
+              tmpCol.copy(colTerra).lerp(colCliffRim, 0.45);
+            } else if (d < 0) {
+              tmpCol.copy(colDirtEdge).lerp(colCliffRim, uFloor > 0.85 ? 0.6 : 0.15);
+            } else {
+              tmpCol.copy(colGroove).lerp(colDirtEdge, uFloor * 0.5);
+            }
+          } else if (s.feature === 'cliff_drop') {
+            wy += bank;
+            tmpCol.copy(uFloor > 0.78 ? colCliffRim : colSandstone);
           } else {
             // Smooth concave dirt trough + banking
             const trough = uFloor * uFloor * 1.4;
@@ -696,6 +715,30 @@ export class TrackBuilder {
         );
         shard.rotation.set(0.15 * side, hash2D(i, 9) * Math.PI, -0.2 * side);
         this.group.add(shard);
+      } else if (s.feature === 'cliff_drop' && i % 4 === 0) {
+        const halfW = s.canyonWidth * 0.5 - 0.8;
+        const pylonGeo = new THREE.BoxGeometry(0.7, 3.2, 0.7);
+        for (const side of [-1, 1]) {
+          const pylon = new THREE.Mesh(pylonGeo, pylonMat);
+          pylon.position.set(
+            s.center.x + s.right.x * side * halfW,
+            s.center.y + 1.6,
+            s.center.z + s.right.z * side * halfW
+          );
+          pylon.rotation.y = yaw;
+          this.group.add(pylon);
+        }
+      } else if (s.feature === 'split_terrace' && i % 5 === 0) {
+        // Edge beacons along the elevated left terrace's middle drop-off
+        const markerGeo = new THREE.BoxGeometry(0.55, 2.0, 0.55);
+        const marker = new THREE.Mesh(markerGeo, pylonMat);
+        marker.position.set(
+          s.center.x - s.right.x * 2.4,
+          s.center.y + 13.0,
+          s.center.z - s.right.z * 2.4
+        );
+        marker.rotation.y = yaw;
+        this.group.add(marker);
       }
     }
   }

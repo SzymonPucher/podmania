@@ -14,10 +14,12 @@ A catalog of terrain features and layout elements across all playable maps in Po
 
 | Element | Description | Maps Where It Appears |
 | :--- | :--- | :--- |
-| **Big Height Difference / Chasm Plunge** | Major vertical drops (`22m–32m` per drop) combining `jump_lip`, `chasm_floor`, and `landing_slope`. | Dustveil Gorge (24m & 32m drops), Crimson Rift (26m & 30m drops), Frostspire Glacier (32m drop), Zenith Skyway (24m & 32m drops), Sunscorch Labyrinth (28m & 22m drops) |
+| **Big Height Difference / Chasm Plunge** | Major vertical drops (`22m–44m` per drop) combining `jump_lip` or `cliff_drop` with `chasm_floor` and `landing_slope`. | Dustveil Gorge (24m & 44m drops), Crimson Rift (26m & 42m drops), Frostspire Glacier (32m drop), Zenith Skyway (24m & 32m drops), Sunscorch Labyrinth (28m & 22m drops) |
+| **Sheer Cliff Drop** (`cliff_drop`) | Flat/unramped cliff edge with warning pylons that plunges steeply (`42m–44m`) into a deep basin. | Dustveil Gorge (44m drop), Crimson Rift (42m drop) |
+| **Two-Tier Split Terrace** (`split_terrace`) | Extra-wide (`56m`) divided section where the left half is `+12m` higher than the right half; players can drop from the upper terrace onto the lower half mid-section, and the upper terrace ends in a drop. | Zenith Skyway |
 | **Sharp Turn / Hairpin** | Tight direction-reversing bends with heavy banking (`14°–18°`), often inside caverns or drift sectors. | Dustveil Gorge (Echoing Cavern, `-18°`), Crimson Rift (Lava Tube Cavern, `±14°`), Frostspire Glacier (Drift Hairpins & Ice Prism Cavern, `±16°`), Sunscorch Labyrinth (Geode Cavern, `-16°`) |
 | **S-Bend / Slalom** | Rapidly alternating left/right banked turns (`10°–16°` reversals). | Dustveil Gorge (Twin-Arch Serpentine, Finish Chicane), Frostspire Glacier (Frozen Basin Slalom), Zenith Skyway (S-Bend Causeway), Sunscorch Labyrinth (Boulder Scree Wash) |
-| **Middle Track Height Divider** (`ridge_split`) | Raised central rock spine splitting the track into two parallel channels (`32–36m` total width). | Crimson Rift (Twin-Ledge Basalt Split, Caldera Ridge), Zenith Skyway (Twin Skyway Split) |
+| **Middle Track Height Divider** (`ridge_split`) | Raised central rock spine splitting the track into two parallel channels (`32–36m` total width). | Crimson Rift (Twin-Ledge Basalt Split, Caldera Ridge) |
 | **Enclosed Cavern** (`cave`) | Roofed rock/ice/geode tunnel with crystal clusters and ceiling collision. | Dustveil Gorge, Crimson Rift, Frostspire Glacier, Sunscorch Labyrinth |
 | **Jumpy Section — Rolling Dunes** (`sand_dunes`) | Sinusoidal wave-shaped terrain floor creating rhythmic vertical bumps. | Sunscorch Labyrinth |
 | **Jumpy Section — Rough Scree** (`rough_scree`) | Jagged, uneven boulder-strewn floor with high surface noise. | Sunscorch Labyrinth |
