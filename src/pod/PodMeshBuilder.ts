@@ -426,14 +426,13 @@ export class PodMeshBuilder {
         roughness: 0.34,
       }),
       hudGlass: new THREE.MeshStandardMaterial({
-        color: 0x38bdf8,
-        emissive: 0x0284c7,
-        emissiveIntensity: 0.45,
-        metalness: 0.15,
+        color: 0x0b1220,
+        emissive: 0x071426,
+        emissiveIntensity: 0.25,
+        metalness: 0.85,
         roughness: 0.08,
         transparent: true,
-        opacity: 0.46,
-        side: THREE.DoubleSide,
+        opacity: 0.78,
       }),
       spinner: new THREE.MeshStandardMaterial({
         color: 0xf09c14,
@@ -866,119 +865,140 @@ export class PodMeshBuilder {
   }
 
   private buildCockpit(mats: ReturnType<PodMeshBuilder['createMaterials']>): void {
-    // Proposal 3C: Slim Unpowered Wedge Cabin (narrow shoulder-hugging angular hull, zero rear thrusters)
+    // Proposal 2B: Wingless Unpowered Fighter-Jet Interceptor Canopy
+    // (faceted stealth fuselage, enclosed dark-tinted fighter canopy, zero wings/fins, zero rear thruster)
 
-    // 1. Main slim angular wedge hull (planform in XZ, extruded vertically with crisp bevels)
-    // Note: ExtrudeGeometry extrudes along +Z; rotateX(PI/2) maps shape (x, y) -> (x, 0, y) and extrusion +Z -> -Y
+    // 1. Main faceted stealth-fighter fuselage (sharp nose-to-tail chined planform)
     const hullShape = new THREE.Shape();
-    hullShape.moveTo(-0.15, -1.36); // chisel nose left
-    hullShape.lineTo(0.15, -1.36);  // chisel nose right
-    hullShape.lineTo(0.45, -0.52);  // front shoulder right
-    hullShape.lineTo(0.46, 0.56);   // mid-flank right (tight around pilot)
-    hullShape.lineTo(0.32, 1.18);   // tapered stern right
-    hullShape.lineTo(-0.32, 1.18);  // tapered stern left
-    hullShape.lineTo(-0.46, 0.56);  // mid-flank left
-    hullShape.lineTo(-0.45, -0.52); // front shoulder left
+    hullShape.moveTo(0, -1.54);      // sharp needle nose tip
+    hullShape.lineTo(0.24, -1.02);   // nose chine right
+    hullShape.lineTo(0.46, -0.34);   // forward shoulder right
+    hullShape.lineTo(0.48, 0.42);    // mid-fuselage right
+    hullShape.lineTo(0.32, 1.04);    // rear taper right
+    hullShape.lineTo(0.22, 1.28);    // chiseled stern right
+    hullShape.lineTo(-0.22, 1.28);   // chiseled stern left
+    hullShape.lineTo(-0.32, 1.04);   // rear taper left
+    hullShape.lineTo(-0.48, 0.42);   // mid-fuselage left
+    hullShape.lineTo(-0.46, -0.34);  // forward shoulder left
+    hullShape.lineTo(-0.24, -1.02);  // nose chine left
     hullShape.closePath();
 
     const hullGeo = new THREE.ExtrudeGeometry(hullShape, {
-      depth: 0.24,
+      depth: 0.22,
       bevelEnabled: true,
-      bevelThickness: 0.055,
-      bevelSize: 0.05,
+      bevelThickness: 0.075,
+      bevelSize: 0.055,
       bevelSegments: 2,
     });
     hullGeo.rotateX(Math.PI / 2);
-    hullGeo.translate(0, 0.14, 0);
+    hullGeo.translate(0, 0.16, 0);
     const hullMesh = new THREE.Mesh(hullGeo, mats.cockpitSilver);
     hullMesh.castShadow = true;
     this.cockpitGroup.add(hullMesh);
 
-    // 2. Dark gunmetal lower belly keel (layered hard-surface silhouette)
-    const keelShape = new THREE.Shape();
-    keelShape.moveTo(-0.11, -1.24);
-    keelShape.lineTo(0.11, -1.24);
-    keelShape.lineTo(0.34, -0.46);
-    keelShape.lineTo(0.35, 0.52);
-    keelShape.lineTo(0.24, 1.08);
-    keelShape.lineTo(-0.24, 1.08);
-    keelShape.lineTo(-0.35, 0.52);
-    keelShape.lineTo(-0.34, -0.46);
-    keelShape.closePath();
+    // 2. Dark gunmetal stealth lower belly chine
+    const bellyShape = new THREE.Shape();
+    bellyShape.moveTo(0, -1.40);
+    bellyShape.lineTo(0.20, -0.92);
+    bellyShape.lineTo(0.37, -0.28);
+    bellyShape.lineTo(0.38, 0.40);
+    bellyShape.lineTo(0.24, 1.02);
+    bellyShape.lineTo(0.16, 1.20);
+    bellyShape.lineTo(-0.16, 1.20);
+    bellyShape.lineTo(-0.24, 1.02);
+    bellyShape.lineTo(-0.38, 0.40);
+    bellyShape.lineTo(-0.37, -0.28);
+    bellyShape.lineTo(-0.20, -0.92);
+    bellyShape.closePath();
 
-    const keelGeo = new THREE.ExtrudeGeometry(keelShape, {
-      depth: 0.11,
+    const bellyGeo = new THREE.ExtrudeGeometry(bellyShape, {
+      depth: 0.12,
       bevelEnabled: true,
-      bevelThickness: 0.03,
-      bevelSize: 0.03,
+      bevelThickness: 0.04,
+      bevelSize: 0.035,
       bevelSegments: 1,
     });
-    keelGeo.rotateX(Math.PI / 2);
-    keelGeo.translate(0, -0.11, 0);
-    const keelMesh = new THREE.Mesh(keelGeo, mats.gunmetal);
-    keelMesh.castShadow = true;
-    this.cockpitGroup.add(keelMesh);
+    bellyGeo.rotateX(Math.PI / 2);
+    bellyGeo.translate(0, -0.09, 0);
+    const bellyMesh = new THREE.Mesh(bellyGeo, mats.gunmetal);
+    bellyMesh.castShadow = true;
+    this.cockpitGroup.add(bellyMesh);
 
-    // 3. Nose upper deck fairing (amber-yellow wedge nose + cobalt-blue center stripe)
-    const noseDeckShape = new THREE.Shape();
-    noseDeckShape.moveTo(-0.12, -1.30);
-    noseDeckShape.lineTo(0.12, -1.30);
-    noseDeckShape.lineTo(0.36, -0.44);
-    noseDeckShape.lineTo(-0.36, -0.44);
-    noseDeckShape.closePath();
+    // 3. Faceted upper nose deck + twin cobalt-blue racing stripes & amber trim accents
+    const noseCapShape = new THREE.Shape();
+    noseCapShape.moveTo(0, -1.46);
+    noseCapShape.lineTo(0.21, -0.95);
+    noseCapShape.lineTo(0.34, -0.44);
+    noseCapShape.lineTo(-0.34, -0.44);
+    noseCapShape.lineTo(-0.21, -0.95);
+    noseCapShape.closePath();
 
-    const noseDeckGeo = new THREE.ExtrudeGeometry(noseDeckShape, {
-      depth: 0.055,
+    const noseCapGeo = new THREE.ExtrudeGeometry(noseCapShape, {
+      depth: 0.045,
       bevelEnabled: true,
       bevelThickness: 0.02,
       bevelSize: 0.02,
       bevelSegments: 1,
     });
-    noseDeckGeo.rotateX(Math.PI / 2);
-    noseDeckGeo.translate(0, 0.23, 0);
-    const noseDeckMesh = new THREE.Mesh(noseDeckGeo, mats.yellow);
-    noseDeckMesh.castShadow = true;
-    this.cockpitGroup.add(noseDeckMesh);
+    noseCapGeo.rotateX(Math.PI / 2);
+    noseCapGeo.translate(0, 0.245, 0);
+    const noseCapMesh = new THREE.Mesh(noseCapGeo, mats.gunmetal);
+    noseCapMesh.castShadow = true;
+    this.cockpitGroup.add(noseCapMesh);
 
-    const noseStripeGeo = new THREE.BoxGeometry(0.16, 0.04, 0.72);
-    noseStripeGeo.rotateX(0.06);
-    noseStripeGeo.translate(0, 0.25, -0.84);
-    this.cockpitGroup.add(new THREE.Mesh(noseStripeGeo, mats.blue));
-
-    // 4. Side gunwales / flank armor cowls & integrated front tether shackles (grouped for breakup debris)
     for (const s of [-1, 1] as const) {
-      const flankGroup = new THREE.Group();
-      flankGroup.position.set(s * 0.38, 0.20, 0.06);
+      // Twin cobalt-blue nose-to-canopy racing stripes
+      const frontStripeGeo = new THREE.BoxGeometry(0.085, 0.022, 0.62);
+      frontStripeGeo.rotateY(s * -0.14);
+      frontStripeGeo.translate(s * 0.14, 0.265, -0.78);
+      this.cockpitGroup.add(new THREE.Mesh(frontStripeGeo, mats.blue));
 
-      // Raised steel cockpit coaming wall
-      const wallGeo = new THREE.BoxGeometry(0.13, 0.18, 0.92);
-      wallGeo.rotateZ(s * -0.14);
-      wallGeo.translate(s * -0.02, 0.04, 0.02);
-      const wallMesh = new THREE.Mesh(wallGeo, mats.cockpitSilver);
-      wallMesh.castShadow = true;
-      flankGroup.add(wallMesh);
+      // Crisp amber-yellow forward trim slash near canopy sill
+      const amberTrimGeo = new THREE.BoxGeometry(0.075, 0.028, 0.28);
+      amberTrimGeo.rotateY(s * -0.18);
+      amberTrimGeo.translate(s * 0.28, 0.255, -0.46);
+      this.cockpitGroup.add(new THREE.Mesh(amberTrimGeo, mats.yellow));
+    }
 
-      // Cobalt-blue inlaid flank armor panel
-      const blueFlankGeo = new THREE.BoxGeometry(0.06, 0.11, 0.56);
-      blueFlankGeo.rotateZ(s * -0.14);
-      blueFlankGeo.translate(s * 0.05, -0.04, 0.20);
-      flankGroup.add(new THREE.Mesh(blueFlankGeo, mats.blue));
+    // 4. Compact faceted side intake cheeks & nose tether shackles (no wings/fins; grouped for breakup debris)
+    for (const s of [-1, 1] as const) {
+      const cheekGroup = new THREE.Group();
+      cheekGroup.position.set(s * 0.44, 0.06, 0.02);
 
-      // Amber-yellow forward flank trim plate
-      const yellowFlankGeo = new THREE.BoxGeometry(0.05, 0.10, 0.48);
-      yellowFlankGeo.rotateY(s * -0.32);
-      yellowFlankGeo.translate(s * -0.02, -0.09, -0.84);
-      flankGroup.add(new THREE.Mesh(yellowFlankGeo, mats.yellow));
+      // Angled stealth side intake pod hugging the fuselage
+      const podGeo = new THREE.BoxGeometry(0.18, 0.22, 0.88);
+      podGeo.rotateZ(s * -0.22);
+      podGeo.rotateY(s * -0.06);
+      const podMesh = new THREE.Mesh(podGeo, mats.cockpitSilver);
+      podMesh.castShadow = true;
+      cheekGroup.add(podMesh);
 
-      this.cockpitGroup.add(flankGroup);
-      if (s < 0) this.cockpitLeftWingGroup = flankGroup;
-      else this.cockpitRightWingGroup = flankGroup;
+      // Recessed dark front intake scoop opening
+      const scoopGeo = new THREE.BoxGeometry(0.13, 0.15, 0.08);
+      scoopGeo.rotateZ(s * -0.22);
+      scoopGeo.translate(s * 0.02, 0.0, -0.43);
+      cheekGroup.add(new THREE.Mesh(scoopGeo, mats.gunmetal));
 
-      // Compact gunmetal tether shackle integrated into front shoulder
+      // Cobalt-blue & amber-yellow side flank stripes
+      const sideBlueGeo = new THREE.BoxGeometry(0.04, 0.10, 0.54);
+      sideBlueGeo.rotateZ(s * -0.22);
+      sideBlueGeo.translate(s * 0.085, 0.02, 0.08);
+      cheekGroup.add(new THREE.Mesh(sideBlueGeo, mats.blue));
+
+      const sideYellowGeo = new THREE.BoxGeometry(0.04, 0.07, 0.22);
+      sideYellowGeo.rotateZ(s * -0.22);
+      sideYellowGeo.translate(s * 0.09, -0.04, -0.24);
+      cheekGroup.add(new THREE.Mesh(sideYellowGeo, mats.yellow));
+
+      this.cockpitGroup.add(cheekGroup);
+      if (s < 0) this.cockpitLeftWingGroup = cheekGroup;
+      else this.cockpitRightWingGroup = cheekGroup;
+
+      // Compact gunmetal tether mount integrated into forward nose chine
       const armGroup = new THREE.Group();
-      armGroup.position.set(s * 0.40, 0.16, -0.74);
-      const shackleGeo = new THREE.BoxGeometry(0.14, 0.11, 0.22);
-      shackleGeo.rotateY(s * -0.25);
+      armGroup.position.set(s * 0.34, 0.06, -0.82);
+      const shackleGeo = new THREE.BoxGeometry(0.14, 0.10, 0.20);
+      shackleGeo.rotateY(s * -0.32);
       const shackle = new THREE.Mesh(shackleGeo, mats.gunmetal);
       shackle.castShadow = true;
       armGroup.add(shackle);
@@ -987,122 +1007,115 @@ export class PodMeshBuilder {
       else this.cockpitRightArmGroup = armGroup;
     }
 
-    // 5. Recessed dark cockpit tub, bucket seat, and glowing forward HUD console
-    const tubGeo = new THREE.BoxGeometry(0.56, 0.14, 0.78);
-    tubGeo.translate(0, 0.16, 0.04);
+    // 5. Recessed cockpit interior + pilot silhouette + glowing cyan HUD instrument panel
+    const tubGeo = new THREE.BoxGeometry(0.50, 0.14, 0.86);
+    tubGeo.translate(0, 0.18, -0.02);
     this.cockpitGroup.add(new THREE.Mesh(tubGeo, mats.gunmetal));
 
-    const seatBaseGeo = new THREE.BoxGeometry(0.38, 0.14, 0.42);
-    seatBaseGeo.translate(0, 0.23, 0.16);
-    this.cockpitGroup.add(new THREE.Mesh(seatBaseGeo, mats.seat));
-
-    const seatBackGeo = new THREE.BoxGeometry(0.36, 0.38, 0.11);
-    seatBackGeo.rotateX(-0.18);
-    seatBackGeo.translate(0, 0.42, 0.35);
-    this.cockpitGroup.add(new THREE.Mesh(seatBackGeo, mats.seat));
-
-    const dashGeo = new THREE.BoxGeometry(0.42, 0.14, 0.16);
-    dashGeo.translate(0, 0.28, -0.32);
-    this.cockpitGroup.add(new THREE.Mesh(dashGeo, mats.gunmetal));
+    const seatGeo = new THREE.BoxGeometry(0.34, 0.34, 0.36);
+    seatGeo.rotateX(-0.22);
+    seatGeo.translate(0, 0.30, 0.18);
+    this.cockpitGroup.add(new THREE.Mesh(seatGeo, mats.seat));
 
     const hudScreenMat = new THREE.MeshStandardMaterial({
       color: 0x38bdf8,
       emissive: 0x38bdf8,
-      emissiveIntensity: 1.6,
+      emissiveIntensity: 1.5,
       roughness: 0.2,
     });
-    const hudScreenGeo = new THREE.BoxGeometry(0.22, 0.08, 0.02);
+    const hudScreenGeo = new THREE.BoxGeometry(0.20, 0.07, 0.02);
     hudScreenGeo.rotateX(-0.35);
-    hudScreenGeo.translate(0, 0.34, -0.24);
+    hudScreenGeo.translate(0, 0.33, -0.32);
     this.cockpitGroup.add(new THREE.Mesh(hudScreenGeo, hudScreenMat));
 
-    // 6. Wrap-around translucent cyan holographic HUD windscreen lip
-    const screenFrameGeo = new THREE.BoxGeometry(0.56, 0.04, 0.06);
-    screenFrameGeo.translate(0, 0.34, -0.38);
-    this.cockpitGroup.add(new THREE.Mesh(screenFrameGeo, mats.gunmetal));
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.28, 0.18), mats.gunmetal);
+    torso.position.set(0, 0.34, 0.10);
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.125, 14, 10), mats.cockpitSilver);
+    helmet.position.set(0, 0.52, 0.08);
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.19, 0.07, 0.12), mats.visor);
+    visor.position.set(0, 0.52, -0.01);
+    this.cockpitPilotGroup.add(torso, helmet, visor);
+    this.cockpitGroup.add(this.cockpitPilotGroup);
 
-    const centerGlassGeo = new THREE.BoxGeometry(0.50, 0.24, 0.025);
-    centerGlassGeo.rotateX(-0.62);
-    centerGlassGeo.translate(0, 0.43, -0.30);
-    this.cockpitGroup.add(new THREE.Mesh(centerGlassGeo, mats.hudGlass));
+    // 6. Enclosed dark-tinted fighter-jet canopy + angular stealth framing ribs
+    const canopyGeo = new THREE.SphereGeometry(0.34, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.52);
+    canopyGeo.scale(0.86, 1.15, 1.85);
+    canopyGeo.translate(0, 0.24, -0.02);
+    const canopyMesh = new THREE.Mesh(canopyGeo, mats.hudGlass);
+    this.cockpitGroup.add(canopyMesh);
 
-    for (const s of [-1, 1]) {
-      const sideGlassGeo = new THREE.BoxGeometry(0.025, 0.21, 0.34);
-      sideGlassGeo.rotateZ(s * 0.28);
-      sideGlassGeo.rotateY(s * -0.22);
-      sideGlassGeo.translate(s * 0.28, 0.40, -0.18);
-      this.cockpitGroup.add(new THREE.Mesh(sideGlassGeo, mats.hudGlass));
-    }
+    // Gunmetal canopy sill collar & angled canopy bow frame
+    const sillGeo = new THREE.TorusGeometry(0.34, 0.032, 8, 20);
+    sillGeo.rotateX(Math.PI / 2);
+    sillGeo.scale(0.88, 1.0, 1.88);
+    sillGeo.translate(0, 0.245, -0.02);
+    this.cockpitGroup.add(new THREE.Mesh(sillGeo, mats.gunmetal));
 
-    // 7. Raised amber-and-steel dorsal headrest spine (signature rear chase-cam silhouette)
+    const bowGeo = new THREE.TorusGeometry(0.345, 0.024, 6, 16, Math.PI);
+    bowGeo.scale(0.87, 1.14, 1.0);
+    bowGeo.rotateX(-0.22);
+    bowGeo.translate(0, 0.24, -0.18);
+    this.cockpitGroup.add(new THREE.Mesh(bowGeo, mats.gunmetal));
+
+    // 7. Faceted dorsal spine fairing tapering cleanly behind canopy to stern (NO V-tail wings)
     const spineProfile = new THREE.Shape();
-    spineProfile.moveTo(0.36, 0.18);  // behind seat base
-    spineProfile.lineTo(0.44, 0.62);  // headrest peak front
-    spineProfile.lineTo(0.62, 0.62);  // headrest peak top
-    spineProfile.lineTo(1.12, 0.24);  // tapered slope down to stern
-    spineProfile.lineTo(1.12, 0.14);
-    spineProfile.lineTo(0.36, 0.14);
+    spineProfile.moveTo(0.42, 0.20);
+    spineProfile.lineTo(0.46, 0.52);  // merges behind canopy arch
+    spineProfile.lineTo(0.68, 0.46);
+    spineProfile.lineTo(1.24, 0.22);  // clean low stealth taper to stern
+    spineProfile.lineTo(1.24, 0.14);
+    spineProfile.lineTo(0.42, 0.14);
     spineProfile.closePath();
 
     const spineGeo = new THREE.ExtrudeGeometry(spineProfile, {
-      depth: 0.28,
+      depth: 0.34,
       bevelEnabled: true,
-      bevelThickness: 0.035,
-      bevelSize: 0.03,
+      bevelThickness: 0.04,
+      bevelSize: 0.035,
       bevelSegments: 2,
     });
-    // Rotate so shape X -> +Z (rear), shape Y -> +Y (up), extrusion -> X centered at 0
     spineGeo.rotateY(-Math.PI / 2);
-    spineGeo.translate(0.14, 0, 0);
+    spineGeo.translate(0.17, 0, 0);
     const spineMesh = new THREE.Mesh(spineGeo, mats.cockpitSilver);
     spineMesh.castShadow = true;
     this.cockpitGroup.add(spineMesh);
 
-    // Amber-yellow dorsal cap along top of the headrest spine
-    const capGeo = new THREE.BoxGeometry(0.24, 0.055, 0.56);
-    capGeo.rotateX(0.56);
-    capGeo.translate(0, 0.47, 0.78);
-    this.cockpitGroup.add(new THREE.Mesh(capGeo, mats.yellow));
-
-    const capTopGeo = new THREE.BoxGeometry(0.24, 0.05, 0.22);
-    capTopGeo.translate(0, 0.635, 0.52);
-    this.cockpitGroup.add(new THREE.Mesh(capTopGeo, mats.yellow));
-
-    // Cobalt-blue lower spine side cheek strips
-    for (const s of [-1, 1]) {
-      const spineBlueGeo = new THREE.BoxGeometry(0.06, 0.12, 0.54);
-      spineBlueGeo.translate(s * 0.21, 0.25, 0.76);
-      this.cockpitGroup.add(new THREE.Mesh(spineBlueGeo, mats.blue));
+    // Twin cobalt-blue dorsal racing stripes along rear deck
+    for (const s of [-1, 1] as const) {
+      const rearStripeGeo = new THREE.BoxGeometry(0.085, 0.028, 0.62);
+      rearStripeGeo.rotateX(0.38);
+      rearStripeGeo.translate(s * 0.11, 0.39, 0.88);
+      this.cockpitGroup.add(new THREE.Mesh(rearStripeGeo, mats.blue));
     }
 
-    // 8. Clean closed tapered stern bezel + stacked reactive red/cyan light strips (ZERO rear thrusters)
-    const sternBezelGeo = new THREE.BoxGeometry(0.54, 0.20, 0.07);
-    sternBezelGeo.translate(0, 0.05, 1.21);
+    // 8. Clean closed stealth stern bezel + stacked cyan/red interceptor light bar (ZERO rear thruster)
+    const sternBezelGeo = new THREE.BoxGeometry(0.46, 0.20, 0.07);
+    sternBezelGeo.translate(0, 0.06, 1.29);
     this.cockpitGroup.add(new THREE.Mesh(sternBezelGeo, mats.gunmetal));
-
-    this.cockpitBrakeLightMat = new THREE.MeshStandardMaterial({
-      color: 0xf43f5e,
-      emissive: 0xef4444,
-      emissiveIntensity: 0.85,
-      roughness: 0.2,
-    });
-    const brakeBarGeo = new THREE.BoxGeometry(0.42, 0.038, 0.025);
-    brakeBarGeo.translate(0, 0.095, 1.245);
-    this.cockpitGroup.add(new THREE.Mesh(brakeBarGeo, this.cockpitBrakeLightMat));
 
     this.cockpitStatusLightMat = new THREE.MeshStandardMaterial({
       color: 0x38bdf8,
       emissive: 0x0ea5e9,
-      emissiveIntensity: 1.1,
+      emissiveIntensity: 1.2,
       roughness: 0.2,
     });
     const statusBarGeo = new THREE.BoxGeometry(0.36, 0.032, 0.025);
-    statusBarGeo.translate(0, 0.032, 1.245);
+    statusBarGeo.translate(0, 0.105, 1.325);
     this.cockpitGroup.add(new THREE.Mesh(statusBarGeo, this.cockpitStatusLightMat));
 
+    this.cockpitBrakeLightMat = new THREE.MeshStandardMaterial({
+      color: 0xf43f5e,
+      emissive: 0xef4444,
+      emissiveIntensity: 0.9,
+      roughness: 0.2,
+    });
+    const brakeBarGeo = new THREE.BoxGeometry(0.38, 0.038, 0.025);
+    brakeBarGeo.translate(0, 0.048, 1.325);
+    this.cockpitGroup.add(new THREE.Mesh(brakeBarGeo, this.cockpitBrakeLightMat));
+
     // 9. Compact centered under-belly cyan repulsor hover pad
-    const repulsorHousingGeo = new THREE.BoxGeometry(0.44, 0.065, 0.52);
-    repulsorHousingGeo.translate(0, -0.25, 0.06);
+    const repulsorHousingGeo = new THREE.BoxGeometry(0.38, 0.055, 0.50);
+    repulsorHousingGeo.translate(0, -0.23, 0.08);
     this.cockpitGroup.add(new THREE.Mesh(repulsorHousingGeo, mats.gunmetal));
 
     this.cockpitRepulsorMat = new THREE.MeshStandardMaterial({
@@ -1111,37 +1124,13 @@ export class PodMeshBuilder {
       emissiveIntensity: 1.35,
       roughness: 0.15,
     });
-    const repulsorPadGeo = new THREE.BoxGeometry(0.36, 0.03, 0.44);
-    repulsorPadGeo.translate(0, -0.285, 0.06);
+    const repulsorPadGeo = new THREE.BoxGeometry(0.30, 0.028, 0.42);
+    repulsorPadGeo.translate(0, -0.262, 0.08);
     this.cockpitGroup.add(new THREE.Mesh(repulsorPadGeo, this.cockpitRepulsorMat));
 
-    // 10. Pilot figure (sleek armored flight suit + helmet with stripe + dark visor + arms)
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.34, 0.20), mats.gunmetal);
-    torso.position.set(0, 0.42, 0.17);
-    const chestPlate = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.20, 0.22), mats.blue);
-    chestPlate.position.set(0, 0.45, 0.17);
-    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.145, 16, 12), mats.cockpitSilver);
-    helmet.position.set(0, 0.68, 0.14);
-    const helmetStripe = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.16, 0.26), mats.yellow);
-    helmetStripe.position.set(0, 0.74, 0.14);
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.23, 0.09, 0.15), mats.visor);
-    visor.position.set(0, 0.68, 0.04);
-    this.cockpitPilotGroup.add(torso, chestPlate, helmet, helmetStripe, visor);
-
-    for (const s of [-1, 1]) {
-      const shoulder = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.10, 0.12), mats.yellow);
-      shoulder.position.set(s * 0.18, 0.51, 0.15);
-      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.034, 0.32, 8), mats.gunmetal);
-      arm.rotation.x = Math.PI / 2 - 0.32;
-      arm.rotation.z = s * 0.16;
-      arm.position.set(s * 0.16, 0.42, -0.02);
-      this.cockpitPilotGroup.add(shoulder, arm);
-    }
-    this.cockpitGroup.add(this.cockpitPilotGroup);
-
-    // 11. Tether attachment dummies aligned to the integrated front nose shackles
-    this.cockpitLeftArmDummy.position.set(-0.44, 0.16, -0.82);
-    this.cockpitRightArmDummy.position.set(0.44, 0.16, -0.82);
+    // 10. Tether attachment dummies aligned to integrated nose shackles
+    this.cockpitLeftArmDummy.position.set(-0.38, 0.06, -0.90);
+    this.cockpitRightArmDummy.position.set(0.38, 0.06, -0.90);
     this.cockpitGroup.add(this.cockpitLeftArmDummy, this.cockpitRightArmDummy);
   }
 
