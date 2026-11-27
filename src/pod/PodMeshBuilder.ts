@@ -25,6 +25,7 @@ const CABLE_RINGS = 20;
 const CABLE_SIDES = 6;
 const CABLE_RADIUS = 0.028;
 const COCKPIT_BASE_Z = 5.325;
+const COCKPIT_SCALE = 0.72;
 
 export class PodMeshBuilder {
   public readonly podRoot = new THREE.Group();
@@ -75,6 +76,7 @@ export class PodMeshBuilder {
 
     this.buildCockpit(mats);
     this.cockpitGroup.position.set(0, 0.85, COCKPIT_BASE_Z);
+    this.cockpitGroup.scale.setScalar(COCKPIT_SCALE);
 
     this.damperLight = new THREE.PointLight(0x38bdf8, 0, 14, 1.5);
     this.damperLight.position.set(0, -0.5, 0.5);
