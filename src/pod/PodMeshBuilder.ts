@@ -35,7 +35,6 @@ export class PodMeshBuilder {
   private readonly leftEngine: EngineVisualRefs;
   private readonly rightEngine: EngineVisualRefs;
   private readonly cockpitPilotGroup = new THREE.Group();
-  private readonly cockpitDamperCones: THREE.Mesh[] = [];
   private readonly damperLight: THREE.PointLight;
 
   private readonly cockpitLeftArmDummy = new THREE.Object3D();
@@ -164,14 +163,6 @@ export class PodMeshBuilder {
     this.updateEngineVisuals(this.leftEngine, t.pLeft, this.flapFlareLeft, t.damperFiring, dt, elapsedTime);
     this.updateEngineVisuals(this.rightEngine, t.pRight, this.flapFlareRight, t.damperFiring, dt, elapsedTime);
 
-    // Cockpit ventral damper cones
-    for (const cone of this.cockpitDamperCones) {
-      cone.visible = t.damperFiring;
-      if (t.damperFiring) {
-        const pulse = 0.88 + Math.sin(elapsedTime * 55) * 0.14;
-        cone.scale.set(1, pulse, 1);
-      }
-    }
     this.damperLight.intensity = t.damperFiring ? 18 : 0;
 
     // Ensure matrices are current before computing local attachment points
@@ -675,16 +666,6 @@ export class PodMeshBuilder {
       armGeo.rotateZ(Math.PI / 2);
       armGeo.translate(s * 0.45, 0.02, -0.95);
       this.cockpitGroup.add(new THREE.Mesh(armGeo, mats.gunmetal));
-
-      // Ventral cockpit damper cones
-      const dampGeo = new THREE.ConeGeometry(0.22, 1.25, 12, 1, true);
-      dampGeo.rotateX(Math.PI);
-      dampGeo.translate(0, -0.62, 0);
-      const dCone = new THREE.Mesh(dampGeo, mats.damperJet);
-      dCone.position.set(s * 0.38, -0.25, 0.15);
-      dCone.visible = false;
-      this.cockpitGroup.add(dCone);
-      this.cockpitDamperCones.push(dCone);
     }
 
     // Cobalt-blue nose chevron
