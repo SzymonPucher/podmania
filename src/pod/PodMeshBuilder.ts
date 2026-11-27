@@ -645,12 +645,33 @@ export class PodMeshBuilder {
     root.add(pylonDummy);
 
     // 8. Front-Ventral Tilt Thruster Nozzle & Downward Jet Plumes (z = -2.82, facing -Y)
-    const tiltNozzle = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.11, 0.15, 0.14, 14),
-      mats.gunmetal
+    const tiltNozzleGroup = new THREE.Group();
+    tiltNozzleGroup.position.set(0, -0.50, -2.82);
+
+    const tiltCollar = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.18, 0.16, 0.14, 16),
+      mats.copper
     );
-    tiltNozzle.position.set(0, -0.49, -2.82);
-    root.add(tiltNozzle);
+    tiltCollar.position.set(0, 0.02, 0);
+    tiltNozzleGroup.add(tiltCollar);
+
+    const tiltNozzle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.14, 0.22, 0.24, 16),
+      mats.steel
+    );
+    tiltNozzle.position.set(0, -0.14, 0);
+    tiltNozzle.castShadow = true;
+    tiltNozzleGroup.add(tiltNozzle);
+
+    const tiltRim = new THREE.Mesh(
+      new THREE.TorusGeometry(0.20, 0.028, 8, 20),
+      new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
+    );
+    tiltRim.rotation.x = Math.PI / 2;
+    tiltRim.position.set(0, -0.25, 0);
+    tiltNozzleGroup.add(tiltRim);
+
+    root.add(tiltNozzleGroup);
 
     const tiltCoreGeo = new THREE.ConeGeometry(0.18, 1.35, 14, 1, true);
     tiltCoreGeo.rotateX(Math.PI);
@@ -666,7 +687,7 @@ export class PodMeshBuilder {
         side: THREE.DoubleSide,
       })
     );
-    tiltThrusterCore.position.set(0, -0.54, -2.82);
+    tiltThrusterCore.position.set(0, -0.74, -2.82);
     tiltThrusterCore.visible = false;
     root.add(tiltThrusterCore);
 
@@ -674,7 +695,7 @@ export class PodMeshBuilder {
     tiltOuterGeo.rotateX(Math.PI);
     tiltOuterGeo.translate(0, -0.95, 0);
     const tiltThrusterOuter = new THREE.Mesh(tiltOuterGeo, mats.damperJet);
-    tiltThrusterOuter.position.set(0, -0.54, -2.82);
+    tiltThrusterOuter.position.set(0, -0.74, -2.82);
     tiltThrusterOuter.visible = false;
     root.add(tiltThrusterOuter);
 

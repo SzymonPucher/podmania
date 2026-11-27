@@ -317,7 +317,7 @@ export class HudController {
           !input.spaceHeld
         ) {
           this.eventBadgeEl.dataset.livePrompt = '1';
-          this.eventBadgeEl.textContent = 'SPACE — TILT ENGINES 40°';
+          this.eventBadgeEl.textContent = 'SPACE — TILT ENGINES 20°';
           this.eventBadgeEl.className = 'event-badge badge-damp-prompt';
         } else if (this.eventBadgeEl.dataset.livePrompt === '1') {
           this.eventBadgeEl.dataset.livePrompt = '0';

@@ -33,7 +33,7 @@ export const POD_CONFIG = {
   airPitchNoseDropRate: 0.7,
 
   // Engine Rotation (Space) & Landing Vector Boost
-  engineTiltMaxDeg: 40.0,
+  engineTiltMaxDeg: 20.0,
   engineTiltUpRate: 6.8,
   engineTiltDownRate: 6.0,
   tiltedGroundDrag: 0.78,
