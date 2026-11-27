@@ -80,11 +80,8 @@ export class PodMeshBuilder {
 
     const mats = this.createMaterials();
 
-    const leftEngineMats = this.cloneEngineMaterials(mats);
-    const rightEngineMats = this.cloneEngineMaterials(mats);
-
-    this.leftEngine = this.buildSingleEngine(-1.35, -1, leftEngineMats.mats, leftEngineMats.entries);
-    this.rightEngine = this.buildSingleEngine(1.35, 1, rightEngineMats.mats, rightEngineMats.entries);
+    this.leftEngine = this.buildSingleEngine(-1.35, -1, mats);
+    this.rightEngine = this.buildSingleEngine(1.35, 1, mats);
     this.enginesGroup.add(this.leftEngine.root, this.rightEngine.root);
 
     this.buildCockpit(mats);
@@ -370,36 +367,25 @@ export class PodMeshBuilder {
     };
   }
 
-  private cloneEngineMaterials(
-    baseMats: ReturnType<PodMeshBuilder['createMaterials']>
-  ): {
-    mats: ReturnType<PodMeshBuilder['createMaterials']>;
-    entries: HeatMaterialEntry[];
-  } {
-    const mats = { ...baseMats };
-    const entries: HeatMaterialEntry[] = [];
-    const keys: Array<
-      'steel' | 'gunmetal' | 'yellow' | 'blue' | 'maroon' | 'copper' | 'spinner'
-    > = ['steel', 'gunmetal', 'yellow', 'blue', 'maroon', 'copper', 'spinner'];
-
-    for (const key of keys) {
-      const cloned = baseMats[key].clone();
-      mats[key] = cloned;
-      entries.push({
-        mat: cloned,
-        baseColor: cloned.color.clone(),
-        baseEmissive: cloned.emissive.clone(),
-      });
-    }
-    return { mats, entries };
-  }
-
   private buildSingleEngine(
     xPos: number,
     sideSign: number,
-    mats: ReturnType<PodMeshBuilder['createMaterials']>,
-    heatMaterials: HeatMaterialEntry[]
+    mats: ReturnType<PodMeshBuilder['createMaterials']>
   ): EngineVisualRefs {
+    const nozzleMat = mats.gunmetal.clone();
+    const tailSpikeMat = mats.steel.clone();
+    const heatMaterials: HeatMaterialEntry[] = [
+      {
+        mat: nozzleMat,
+        baseColor: nozzleMat.color.clone(),
+        baseEmissive: nozzleMat.emissive.clone(),
+      },
+      {
+        mat: tailSpikeMat,
+        baseColor: tailSpikeMat.color.clone(),
+        baseEmissive: tailSpikeMat.emissive.clone(),
+      },
+    ];
     const root = new THREE.Group();
     root.position.set(xPos, 0, 0);
 
@@ -467,20 +453,28 @@ export class PodMeshBuilder {
       blk.translate(Math.cos(ang) * 0.49, Math.sin(ang) * 0.49, zOff);
       gunmetalGeos.push(blk);
     }
-    // 16 angled rear exhaust nozzle petals
+    const greebleMerged = mergeGeometries(gunmetalGeos);
+    if (greebleMerged) {
+      const gm = new THREE.Mesh(greebleMerged, mats.gunmetal);
+      gm.castShadow = true;
+      root.add(gm);
+    }
+
+    // 16 angled rear exhaust nozzle petals (isolated material for thermal redness)
+    const nozzleGeos: THREE.BufferGeometry[] = [];
     for (let i = 0; i < 16; i++) {
       const ang = (i / 16) * Math.PI * 2;
       const petal = new THREE.BoxGeometry(0.11, 0.035, 0.36);
       petal.rotateX(0.16);
       petal.rotateZ(ang);
       petal.translate(Math.cos(ang) * 0.37, Math.sin(ang) * 0.37, -0.02);
-      gunmetalGeos.push(petal);
+      nozzleGeos.push(petal);
     }
-    const greebleMerged = mergeGeometries(gunmetalGeos);
-    if (greebleMerged) {
-      const gm = new THREE.Mesh(greebleMerged, mats.gunmetal);
-      gm.castShadow = true;
-      root.add(gm);
+    const nozzleMerged = mergeGeometries(nozzleGeos);
+    if (nozzleMerged) {
+      const nm = new THREE.Mesh(nozzleMerged, nozzleMat);
+      nm.castShadow = true;
+      root.add(nm);
     }
 
     // Copper/brass fuel manifold rings
@@ -597,7 +591,7 @@ export class PodMeshBuilder {
     const tailSpikeGeo = new THREE.ConeGeometry(0.24, 0.72, 20);
     tailSpikeGeo.rotateX(Math.PI / 2);
     tailSpikeGeo.translate(0, 0, 0.22);
-    const tailSpike = new THREE.Mesh(tailSpikeGeo, mats.steel);
+    const tailSpike = new THREE.Mesh(tailSpikeGeo, tailSpikeMat);
     tailSpike.castShadow = true;
     root.add(tailSpike);
 

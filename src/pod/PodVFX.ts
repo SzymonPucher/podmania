@@ -13,6 +13,7 @@ interface Particle {
 const DUST_COUNT = 160;
 const SPARK_COUNT = 80;
 const FLAME_COUNT = 120;
+const SMOKE_COUNT = 120;
 
 export class PodVFX {
   public readonly group = new THREE.Group();
@@ -31,6 +32,12 @@ export class PodVFX {
   private flameCursor = 0;
   private flameAccumLeft = 0;
   private flameAccumRight = 0;
+
+  private readonly smokeMesh: THREE.InstancedMesh;
+  private readonly smokePool: Particle[] = [];
+  private smokeCursor = 0;
+  private smokeAccumLeft = 0;
+  private smokeAccumRight = 0;
 
   private readonly shockRing: THREE.Mesh;
   private shockAge = -1;
@@ -123,6 +130,31 @@ export class PodVFX {
       this.flameMesh.setColorAt(i, this.flameHotColor);
     }
 
+    const smokeGeo = new THREE.DodecahedronGeometry(0.42, 0);
+    const smokeMat = new THREE.MeshBasicMaterial({
+      color: 0x383d46,
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+    });
+    this.smokeMesh = new THREE.InstancedMesh(smokeGeo, smokeMat, SMOKE_COUNT);
+    this.smokeMesh.frustumCulled = false;
+    this.group.add(this.smokeMesh);
+
+    for (let i = 0; i < SMOKE_COUNT; i++) {
+      this.smokePool.push({
+        active: false,
+        age: 0,
+        life: 0.7,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        scale: 1,
+      });
+      this.dummy.scale.set(0, 0, 0);
+      this.dummy.updateMatrix();
+      this.smokeMesh.setMatrixAt(i, this.dummy.matrix);
+    }
+
     // Cyan landing shockwave ring
     const ringGeo = new THREE.RingGeometry(1.4, 2.3, 32);
     ringGeo.rotateX(-Math.PI / 2);
@@ -189,6 +221,22 @@ export class PodVFX {
       1.35,
       t.overheatedRight,
       this.flameAccumRight,
+      dt
+    );
+
+    // Dark smoke when engine heat is above 80%
+    this.smokeAccumLeft = this.updateEngineHeatSmoke(
+      t,
+      -1.35,
+      t.heatLeft,
+      this.smokeAccumLeft,
+      dt
+    );
+    this.smokeAccumRight = this.updateEngineHeatSmoke(
+      t,
+      1.35,
+      t.heatRight,
+      this.smokeAccumRight,
       dt
     );
 
@@ -320,6 +368,28 @@ export class PodVFX {
       this.flameMesh.instanceColor.needsUpdate = true;
     }
 
+    // Update smoke pool
+    for (let i = 0; i < SMOKE_COUNT; i++) {
+      const p = this.smokePool[i];
+      if (!p.active) continue;
+      p.age += dt;
+      if (p.age >= p.life) {
+        p.active = false;
+        this.dummy.scale.set(0, 0, 0);
+      } else {
+        p.vel.y += 4.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const u = p.age / p.life;
+        const s = p.scale * (0.8 + u * 2.1) * (1 - u * 0.9);
+        this.dummy.position.copy(p.pos);
+        this.dummy.rotation.set(u * 1.8, u * 2.4, 0);
+        this.dummy.scale.set(s, s, s);
+      }
+      this.dummy.updateMatrix();
+      this.smokeMesh.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.smokeMesh.instanceMatrix.needsUpdate = true;
+
     // Update shockwave ring
     if (this.shockAge >= 0) {
       this.shockAge += dt;
@@ -385,6 +455,52 @@ export class PodVFX {
       if (Math.random() < 0.2) {
         this.triggerSparks(p.pos, 1);
       }
+    }
+
+    return nextAccum;
+  }
+
+  private updateEngineHeatSmoke(
+    t: PodTelemetry,
+    sideX: number,
+    heat: number,
+    accum: number,
+    dt: number
+  ): number {
+    if (heat <= 80) {
+      return 0;
+    }
+
+    const intensity = Math.min(1, (heat - 80) / 20);
+    let nextAccum = accum + dt * (20 + intensity * 24);
+    this.tmpRight.set(Math.cos(t.yaw), 0, -Math.sin(t.yaw));
+    const fwdX = -Math.sin(t.yaw);
+    const fwdZ = -Math.cos(t.yaw);
+    const cosR = Math.cos(t.roll);
+    const sinR = Math.sin(t.roll);
+    const latOffset = sideX * cosR;
+    const vertOffset = sideX * sinR;
+
+    while (nextAccum >= 1) {
+      nextAccum -= 1;
+      const p = this.smokePool[this.smokeCursor];
+      this.smokeCursor = (this.smokeCursor + 1) % SMOKE_COUNT;
+
+      const zLocal = -0.35 - Math.random() * 1.6;
+      p.active = true;
+      p.age = 0;
+      p.life = 0.55 + Math.random() * 0.35;
+      p.pos.set(
+        t.pos.x + this.tmpRight.x * latOffset - fwdX * zLocal + (Math.random() - 0.5) * 0.4,
+        t.pos.y + vertOffset + 0.28 + (Math.random() - 0.5) * 0.25,
+        t.pos.z + this.tmpRight.z * latOffset - fwdZ * zLocal + (Math.random() - 0.5) * 0.4
+      );
+      p.vel.set(
+        t.vel.x * 0.55 - fwdX * (4 + Math.random() * 5) + (Math.random() - 0.5) * 3.5,
+        t.vel.y * 0.45 + 2.8 + Math.random() * 3.2,
+        t.vel.z * 0.55 - fwdZ * (4 + Math.random() * 5) + (Math.random() - 0.5) * 3.5
+      );
+      p.scale = (0.75 + Math.random() * 0.65) * (0.7 + intensity * 0.5);
     }
 
     return nextAccum;
