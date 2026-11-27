@@ -831,16 +831,25 @@ export class TrackBuilder {
 
   private buildPillarSlalomProps(): void {
     const pal = BIOME_PALETTES[this.biome];
-    const pillarMat = new THREE.MeshStandardMaterial({
-      color: pal.sandstone,
+    const rockMat = new THREE.MeshStandardMaterial({
+      color: pal.terra,
       flatShading: true,
-      roughness: 0.85,
+      roughness: 0.94,
     });
-    const ringMat = new THREE.MeshStandardMaterial({
-      color: 0xf59e0b,
-      emissive: 0xf59e0b,
-      emissiveIntensity: 1.4,
-      roughness: 0.3,
+
+    // Build 3 varied jagged rock geometries for natural boulder/outcrop silhouettes
+    const rockGeos: THREE.BufferGeometry[] = [0, 1, 2].map((variant) => {
+      const geo = new THREE.DodecahedronGeometry(1, 1);
+      const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
+      for (let v = 0; v < posAttr.count; v++) {
+        const vx = posAttr.getX(v);
+        const vy = posAttr.getY(v);
+        const vz = posAttr.getZ(v);
+        const n = 0.72 + hash2D(vx * 3.1 + variant * 17, vz * 3.1 + vy * 2.3) * 0.52;
+        posAttr.setXYZ(v, vx * n, vy * (vy > 0 ? n * 1.15 : 0.85), vz * n);
+      }
+      geo.computeVertexNormals();
+      return geo;
     });
 
     // Find contiguous pillar_slalom spans where width is wide (>= 120m)
@@ -859,50 +868,53 @@ export class TrackBuilder {
         const span = end - start;
         if (span < 12) continue;
 
-        // Place 2 optional launch ramps to skip sections of the slalom
+        // Place 2 huge optional launch ramps to soar over large sections of the slalom
         const rampSpecs = [
-          { idx: start + Math.floor(span * 0.28), latOffset: -24 },
-          { idx: start + Math.floor(span * 0.64), latOffset: 26 },
+          { idx: start + Math.floor(span * 0.22), latOffset: -24 },
+          { idx: start + Math.floor(span * 0.58), latOffset: 26 },
         ];
         for (const spec of rampSpecs) {
-          this.addLaunchRamp(this.slices[spec.idx], spec.latOffset, 18, 30, 8.5);
+          this.addLaunchRamp(this.slices[spec.idx], spec.latOffset, 22, 46, 18.0);
         }
 
-        // Populate dense staggered slalom pillars across the ~200m width
-        for (let r = start + 2; r <= end - 2; r += 5) {
+        // Populate staggered rock outcrops across the ~200m width (less frequent, natural rock shapes)
+        for (let r = start + 3; r <= end - 3; r += 8) {
           const s = this.slices[r];
           const halfUsable = Math.min(82, s.canyonWidth * 0.5 - 12);
-          const cols = 5;
+          const cols = 4;
           for (let c = 0; c < cols; c++) {
             const baseFrac = (c / (cols - 1)) * 2 - 1; // -1..1
-            const jitter = (hash2D(r * 7 + c, 13) - 0.5) * 24;
+            const jitter = (hash2D(r * 7 + c, 13) - 0.5) * 28;
             const d = THREE.MathUtils.clamp(baseFrac * halfUsable + jitter, -halfUsable, halfUsable);
 
             // Keep ramp approach and immediate landing corridor clear
             const nearRamp = rampSpecs.some(
-              (rs) => Math.abs(d - rs.latOffset) < 15 && r >= rs.idx - 6 && r <= rs.idx + 12
+              (rs) => Math.abs(d - rs.latOffset) < 17 && r >= rs.idx - 8 && r <= rs.idx + 16
             );
             if (nearRamp) continue;
 
-            const radius = 3.6 + hash2D(r, c * 11) * 2.6;
-            const height = 11 + hash2D(r * 3, c * 17) * 9;
+            const radius = 4.2 + hash2D(r, c * 11) * 3.0;
+            const height = 9.0 + hash2D(r * 3, c * 17) * 7.0;
             const wx = s.center.x + s.right.x * d;
             const wz = s.center.z + s.right.z * d;
             const wy = this.sampleGround(wx, s.center.y, wz).groundY;
 
-            const geo = new THREE.CylinderGeometry(radius * 0.72, radius, height, 7);
-            const mesh = new THREE.Mesh(geo, pillarMat);
-            mesh.position.set(wx, wy + height * 0.5 - 0.5, wz);
-            mesh.rotation.y = hash2D(r, c * 23) * Math.PI;
+            const rockGeo = rockGeos[(r + c) % rockGeos.length];
+            const mesh = new THREE.Mesh(rockGeo, rockMat);
+            mesh.scale.set(
+              radius * (0.9 + hash2D(r, c + 1) * 0.3),
+              height * 0.65,
+              radius * (0.9 + hash2D(c, r + 2) * 0.3)
+            );
+            mesh.position.set(wx, wy + height * 0.38 - 0.6, wz);
+            mesh.rotation.set(
+              (hash2D(r, c * 5) - 0.5) * 0.25,
+              hash2D(r, c * 23) * Math.PI * 2,
+              (hash2D(c, r * 7) - 0.5) * 0.25
+            );
             mesh.castShadow = true;
             mesh.receiveShadow = true;
             this.group.add(mesh);
-
-            const ringGeo = new THREE.CylinderGeometry(radius * 0.92, radius * 0.96, 0.55, 7);
-            const ring = new THREE.Mesh(ringGeo, ringMat);
-            ring.position.set(wx, wy + 2.4, wz);
-            ring.rotation.y = mesh.rotation.y;
-            this.group.add(ring);
 
             this.obstacles.push({ x: wx, y: wy, z: wz, radius, height });
           }
