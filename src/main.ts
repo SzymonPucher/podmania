@@ -43,6 +43,7 @@ class PodManiaApp {
   private raceState: RaceState = 'MENU';
   private countdownSec = 2.4;
   private lastBeepStep = 3;
+  private falseStartTriggered = false;
   private raceTimeMs = 0;
   private accumulator = 0;
   private lastFrameTime = performance.now();
@@ -168,6 +169,7 @@ class PodManiaApp {
     this.raceTimeMs = 0;
     this.countdownSec = 2.4;
     this.lastBeepStep = 3;
+    this.falseStartTriggered = false;
     this.raceState = 'COUNTDOWN';
     this.hud.configureMapHud(
       this.activeMap,
@@ -271,6 +273,16 @@ class PodManiaApp {
     const inputSnap = this.input.getSnapshot();
 
     if (this.raceState === 'COUNTDOWN') {
+      if (
+        !this.falseStartTriggered &&
+        (inputSnap.targetLeft !== 0 || inputSnap.targetRight !== 0)
+      ) {
+        this.falseStartTriggered = true;
+        this.raceTimeMs += 5000;
+        this.hud.showEventBadge('FALSE START! +5.0s PENALTY', 'false_start');
+        this.audio.playImpact(0.45);
+      }
+
       this.countdownSec -= dt;
       const step = Math.ceil(this.countdownSec / 0.8);
       if (step < this.lastBeepStep && step >= 1) {
@@ -292,7 +304,8 @@ class PodManiaApp {
       this.checkpoints &&
       (this.raceState === 'COUNTDOWN' || this.raceState === 'RACING')
     ) {
-      const allowDrive = this.raceState === 'RACING';
+      const allowDrive =
+        this.raceState === 'RACING' || this.raceState === 'COUNTDOWN';
       this.accumulator += dt;
 
       while (this.accumulator >= FIXED_DT) {

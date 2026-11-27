@@ -213,7 +213,7 @@ export class HudController {
 
   public showEventBadge(
     text: string,
-    kind: 'vector_boost' | 'perfect_damp' | 'hard_impact'
+    kind: 'vector_boost' | 'perfect_damp' | 'hard_impact' | 'false_start'
   ): void {
     this.eventBadgeEl.dataset.livePrompt = '0';
     this.eventBadgeEl.textContent = text;
@@ -222,7 +222,9 @@ export class HudController {
         ? 'badge-vector-boost'
         : kind === 'perfect_damp'
           ? 'badge-perfect-damp'
-          : 'badge-hard-impact';
+          : kind === 'false_start'
+            ? 'badge-overload-warn'
+            : 'badge-hard-impact';
     this.eventBadgeEl.className = `event-badge ${badgeClass}`;
 
     if (this.badgeHideTimeout !== null) {
