@@ -1,11 +1,9 @@
-import * as THREE from 'three';
+﻿import * as THREE from 'three';
 import type { CheckpointMarkerData, TrackBuilder } from '../world/TrackBuilder';
 
 interface GateVisual {
   data: CheckpointMarkerData;
   group: THREE.Group;
-  ringMat: THREE.MeshBasicMaterial;
-  beamMat: THREE.MeshBasicMaterial;
 }
 
 export interface CheckpointSnapshot {
@@ -54,7 +52,6 @@ export class CheckpointSystem {
       this.group.add(gate.group);
     }
 
-    this.refreshGateColors();
   }
 
   public reset(startPos: THREE.Vector3, startYaw: number, modTankSec = 0): void {
@@ -68,7 +65,6 @@ export class CheckpointSystem {
       modTankSec,
     };
     this.prevPodPos.copy(startPos);
-    this.refreshGateColors();
   }
 
   public getSnapshot(): CheckpointSnapshot {
@@ -147,8 +143,7 @@ export class CheckpointSystem {
             modTankSec,
           };
           this.nextCpIndex = 0;
-          this.refreshGateColors();
-          return {
+                return {
             crossedCp: null,
             completedLap,
             splitIndex,
@@ -174,8 +169,7 @@ export class CheckpointSystem {
         modTankSec,
       };
       this.nextCpIndex++;
-      this.refreshGateColors();
-      return {
+        return {
         crossedCp: cpNum,
         completedLap: null,
         splitIndex,
@@ -193,104 +187,62 @@ export class CheckpointSystem {
     };
   }
 
-  private refreshGateColors(): void {
-    this.gates.forEach((g, idx) => {
-      if (g.data.isFinish) {
-        g.ringMat.color.setHex(0xfbbf24);
-        g.beamMat.color.setHex(0xfbbf24);
-        g.beamMat.opacity = idx === this.nextCpIndex ? 0.42 : 0.16;
-      } else if (idx < this.nextCpIndex) {
-        g.ringMat.color.setHex(0x34d399);
-        g.beamMat.color.setHex(0x34d399);
-        g.beamMat.opacity = 0.12;
-      } else if (idx === this.nextCpIndex) {
-        g.ringMat.color.setHex(0x38bdf8);
-        g.beamMat.color.setHex(0x38bdf8);
-        g.beamMat.opacity = 0.45;
-      } else {
-        g.ringMat.color.setHex(0x64748b);
-        g.beamMat.color.setHex(0x64748b);
-        g.beamMat.opacity = 0.14;
-      }
-    });
-  }
-
-  private buildStartArch(
-    pos: THREE.Vector3,
-    tangent: THREE.Vector3,
-    width: number
-  ): void {
+  private buildStoneArch(pos: THREE.Vector3, tangent: THREE.Vector3, width: number): THREE.Group {
     const grp = new THREE.Group();
     grp.position.copy(pos);
     grp.rotation.y = Math.atan2(-tangent.x, -tangent.z);
 
-    const pylonMat = new THREE.MeshStandardMaterial({
-      color: 0x334155,
-      metalness: 0.8,
-      roughness: 0.35,
-    });
-    const glowMat = new THREE.MeshBasicMaterial({ color: 0x34d399 });
+    const mats = [0x8a8378, 0x7b746a, 0x948c80].map(
+      (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95, metalness: 0 })
+    );
+    const hw = width * 0.48;
+    const pillarH = 6.2;
+    const blockT = 1.5;
+    const depth = 2.0;
 
-    const hw = width * 0.46;
+    // Pillars: stacked stone blocks
+    const rows = 6;
+    const rowH = pillarH / rows;
     for (const s of [-1, 1]) {
-      const pylon = new THREE.Mesh(new THREE.BoxGeometry(1.2, 9.5, 1.2), pylonMat);
-      pylon.position.set(s * hw, 4.5, 0);
-      grp.add(pylon);
+      for (let r = 0; r < rows; r++) {
+        const b = new THREE.Mesh(
+          new THREE.BoxGeometry(blockT, rowH * 0.98, depth),
+          mats[(r + (s > 0 ? 1 : 0)) % 3]
+        );
+        b.position.set(s * hw + (r % 2 ? 0.05 : -0.05), rowH * (r + 0.5), 0);
+        grp.add(b);
+      }
     }
-    const bar = new THREE.Mesh(new THREE.BoxGeometry(hw * 2 + 1.2, 0.7, 0.8), glowMat);
-    bar.position.set(0, 9.2, 0);
-    grp.add(bar);
-    this.group.add(grp);
+
+    // Semicircular arch of wedge-like stone blocks
+    const n = 13;
+    const midR = hw;
+    const arcLen = (Math.PI * midR) / n;
+    for (let i = 0; i < n; i++) {
+      const a = Math.PI - ((i + 0.5) * Math.PI) / n;
+      const b = new THREE.Mesh(
+        new THREE.BoxGeometry(blockT, arcLen * 1.04, depth),
+        mats[i % 3]
+      );
+      b.position.set(Math.cos(a) * midR, pillarH + Math.sin(a) * midR, 0);
+      b.rotation.z = a;
+      grp.add(b);
+    }
+    // Keystone
+    const key = new THREE.Mesh(new THREE.BoxGeometry(blockT * 1.2, arcLen * 1.2, depth * 1.1), mats[1]);
+    key.position.set(0, pillarH + midR + 0.05, 0);
+    key.rotation.z = Math.PI / 2;
+    grp.add(key);
+    return grp;
+  }
+
+  private buildStartArch(pos: THREE.Vector3, tangent: THREE.Vector3, width: number): void {
+    this.group.add(this.buildStoneArch(pos, tangent, width));
   }
 
   private buildGateArch(cp: CheckpointMarkerData): GateVisual {
-    const group = new THREE.Group();
-    group.position.copy(cp.position);
-    group.rotation.y = Math.atan2(-cp.tangent.x, -cp.tangent.z);
-
-    const hw = cp.canyonWidth * 0.48;
-    const ringMat = new THREE.MeshBasicMaterial({
-      color: cp.isFinish ? 0xfbbf24 : 0x38bdf8,
-    });
-    const beamMat = new THREE.MeshBasicMaterial({
-      color: cp.isFinish ? 0xfbbf24 : 0x38bdf8,
-      transparent: true,
-      opacity: 0.3,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-
-    const pylonMat = new THREE.MeshStandardMaterial({
-      color: 0x2b3038,
-      metalness: 0.85,
-      roughness: 0.35,
-    });
-
-    for (const s of [-1, 1]) {
-      const pylon = new THREE.Mesh(new THREE.BoxGeometry(1.1, 10.5, 1.1), pylonMat);
-      pylon.position.set(s * hw, 5.0, 0);
-      group.add(pylon);
-
-      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.35, 9.5, 0.35), ringMat);
-      strip.position.set(s * (hw - 0.55), 5.0, 0);
-      group.add(strip);
-    }
-
-    const archMesh = new THREE.Mesh(
-      new THREE.TorusGeometry(hw, 0.28, 8, 28, Math.PI),
-      ringMat
-    );
-    archMesh.position.set(0, 6.2, 0);
-    group.add(archMesh);
-
-    const curtain = new THREE.Mesh(
-      new THREE.PlaneGeometry(hw * 1.9, 9.0),
-      beamMat
-    );
-    curtain.position.set(0, 5.2, 0);
-    group.add(curtain);
-
-    return { data: cp, group, ringMat, beamMat };
+    const group = this.buildStoneArch(cp.position, cp.tangent, cp.canyonWidth);
+    return { data: cp, group };
   }
 }
+
