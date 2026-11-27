@@ -60,14 +60,35 @@ interface CableBuffer {
   mesh: THREE.Mesh;
   geometry: THREE.BufferGeometry;
   positions: Float32Array;
+  rings: number;
+  sides: number;
+}
+
+interface CableHardwareMount {
+  node: THREE.Group;
+  u: number;
+}
+
+interface DetailedCableAssembly {
+  group: THREE.Group;
+  mainCable: CableBuffer;
+  energyConduit: CableBuffer;
+  dataConduit: CableBuffer;
+  mounts: CableHardwareMount[];
+  sideSign: -1 | 1;
 }
 
 const PLASMA_SEGMENTS = 14;
-const CABLE_RINGS = 20;
-const CABLE_SIDES = 6;
-const CABLE_RADIUS = 0.028;
+const MAIN_CABLE_RINGS = 28;
+const MAIN_CABLE_SIDES = 10;
+const MAIN_CABLE_RADIUS = 0.044;
+const AUX_CABLE_RINGS = 24;
+const AUX_CABLE_SIDES = 6;
+const ENERGY_CONDUIT_RADIUS = 0.017;
+const DATA_CONDUIT_RADIUS = 0.014;
 const COCKPIT_BASE_Z = 5.325;
 const COCKPIT_SCALE = 0.72;
+const CABLE_MOUNT_US = [0.055, 0.2, 0.35, 0.5, 0.65, 0.8, 0.935] as const;
 
 export class PodMeshBuilder {
   public readonly podRoot = new THREE.Group();
@@ -86,6 +107,8 @@ export class PodMeshBuilder {
   private readonly cockpitLeftArmDummy = new THREE.Object3D();
   private readonly cockpitRightArmDummy = new THREE.Object3D();
   private cockpitRepulsorMat!: THREE.MeshStandardMaterial;
+  private conduitEnergyMat!: THREE.MeshStandardMaterial;
+  private couplerGlowMat!: THREE.MeshStandardMaterial;
 
   private readonly plasmaLines: Array<{
     line: THREE.Line;
@@ -93,18 +116,26 @@ export class PodMeshBuilder {
     jitterScale: number;
   }> = [];
 
-  private readonly leftCable: CableBuffer;
-  private readonly rightCable: CableBuffer;
+  private readonly leftCable: DetailedCableAssembly;
+  private readonly rightCable: DetailedCableAssembly;
 
   // Reusable scratch objects (zero per-frame allocations)
   private readonly tmpA = new THREE.Vector3();
   private readonly tmpB = new THREE.Vector3();
   private readonly tmpMid = new THREE.Vector3();
+  private readonly tmpP1 = new THREE.Vector3();
+  private readonly tmpP2 = new THREE.Vector3();
   private readonly tmpTan = new THREE.Vector3();
   private readonly tmpNorm = new THREE.Vector3();
   private readonly tmpBinorm = new THREE.Vector3();
+  private readonly tmpAuxPt = new THREE.Vector3();
+  private readonly tmpChord = new THREE.Vector3();
+  private readonly tmpExitDir = new THREE.Vector3();
+  private readonly tmpEntryDir = new THREE.Vector3();
   private readonly tmpUp = new THREE.Vector3(0, 1, 0);
-  private readonly tmpCurve = new THREE.QuadraticBezierCurve3();
+  private readonly tmpCurve = new THREE.CubicBezierCurve3();
+  private readonly tmpBasisMat = new THREE.Matrix4();
+  private readonly tmpInvRoot = new THREE.Matrix4();
 
   private flapFlareLeft = 0;
   private flapFlareRight = 0;
@@ -159,10 +190,10 @@ export class PodMeshBuilder {
       });
     }
 
-    // Pre-allocate twin flexible control tether cables
-    this.leftCable = this.createCableBuffer(mats.cable);
-    this.rightCable = this.createCableBuffer(mats.cable);
-    this.podRoot.add(this.leftCable.mesh, this.rightCable.mesh);
+    // Pre-allocate twin detailed multi-strand control tether cable assemblies
+    this.leftCable = this.createDetailedCableAssembly(-1, mats);
+    this.rightCable = this.createDetailedCableAssembly(1, mats);
+    this.podRoot.add(this.leftCable.group, this.rightCable.group);
   }
 
   public setModification(mod: PodModificationId): void {
@@ -193,23 +224,74 @@ export class PodMeshBuilder {
     );
     this.enginesGroup.rotation.x = 0;
 
+    // Organic idle hover dangle transitioning into subtle high-speed aerodynamic buffet
+    const idleWeight = 1 - THREE.MathUtils.clamp(t.speedMs / 18, 0, 1);
+    const aeroWeight = THREE.MathUtils.clamp(t.speedMs / 75, 0, 1);
+    const revEnergy = (Math.abs(t.pLeft) + Math.abs(t.pRight)) * 0.5;
+    const idleSwayX =
+      (Math.sin(elapsedTime * 1.45) * 0.085 + Math.sin(elapsedTime * 2.85) * 0.025) *
+      idleWeight;
+    const idleBobY =
+      (Math.sin(elapsedTime * 2.15 + 0.6) * 0.065 + Math.cos(elapsedTime * 3.9) * 0.018) *
+      idleWeight;
+    const idleRoll =
+      (Math.cos(elapsedTime * 1.45) * 0.048 + Math.sin(elapsedTime * 2.7) * 0.015) *
+      idleWeight;
+    const idlePitch = Math.sin(elapsedTime * 1.85 + 1.1) * 0.028 * idleWeight;
+
+    const buffetScale =
+      aeroWeight * (0.016 + t.landingBoost * 0.014 + (t.nitroActive ? 0.016 : 0)) +
+      revEnergy * 0.008;
+    const aeroBuffetX = Math.sin(elapsedTime * 17.3) * buffetScale;
+    const aeroBuffetY = Math.cos(elapsedTime * 21.7) * buffetScale * 0.9;
+    const aeroBuffetRoll = Math.sin(elapsedTime * 14.9) * buffetScale * 1.1;
+    const aeroBuffetPitch = Math.cos(elapsedTime * 16.1) * buffetScale * 0.65;
+
     this.cockpitGroup.position.set(
-      t.cockpitYawOffset * 1.4,
-      0.85 + t.cockpitVertOffset,
-      COCKPIT_BASE_Z
+      t.cockpitLatOffset + idleSwayX + aeroBuffetX,
+      0.85 + t.cockpitVertOffset + idleBobY + aeroBuffetY,
+      COCKPIT_BASE_Z + t.cockpitLongOffset
     );
     this.cockpitGroup.rotation.set(
-      0,
-      t.cockpitYawOffset,
-      t.cockpitRollOffset,
+      t.cockpitPitchOffset + idlePitch + aeroBuffetPitch,
+      t.cockpitYawOffset + idleSwayX * 0.16,
+      t.cockpitRollOffset + idleRoll + aeroBuffetRoll,
       'YXZ'
     );
     this.cockpitPilotGroup.rotation.z = t.roll * 0.3;
 
-    // Reactive under-belly repulsor pad glow
+    // Reactive under-belly repulsor pad glow & cable coupler / power conduit accents
     const repulsorPulse = 0.9 + Math.sin(elapsedTime * 7.5) * 0.12;
     this.cockpitRepulsorMat.emissiveIntensity =
       (1.25 + t.landingBoost * 1.9 + (t.nitroActive ? 0.6 : 0)) * repulsorPulse;
+
+    const maxHeat = Math.max(t.heatLeft, t.heatRight) / 100;
+    const energyPulse = 0.85 + 0.15 * Math.sin(elapsedTime * 11.0);
+    if (t.coolantActive) {
+      this.couplerGlowMat.color.setHex(0x67e8f9);
+      this.couplerGlowMat.emissive.setHex(0x38bdf8);
+      this.couplerGlowMat.emissiveIntensity = 1.9 * energyPulse;
+      this.conduitEnergyMat.emissive.setHex(0x0c4a6e);
+      this.conduitEnergyMat.emissiveIntensity = 0.9;
+    } else if (t.nitroActive) {
+      this.couplerGlowMat.color.setHex(0xfb923c);
+      this.couplerGlowMat.emissive.setHex(0xf97316);
+      this.couplerGlowMat.emissiveIntensity = 2.1 * energyPulse;
+      this.conduitEnergyMat.emissive.setHex(0x9a3412);
+      this.conduitEnergyMat.emissiveIntensity = 1.15;
+    } else if (t.landingBoost > 0.05) {
+      this.couplerGlowMat.color.setHex(0x7dd3fc);
+      this.couplerGlowMat.emissive.setHex(0x38bdf8);
+      this.couplerGlowMat.emissiveIntensity = (1.1 + t.landingBoost * 1.3) * energyPulse;
+      this.conduitEnergyMat.emissive.setHex(0x1e3a5f);
+      this.conduitEnergyMat.emissiveIntensity = 0.65;
+    } else {
+      this.couplerGlowMat.color.setHex(0x38bdf8);
+      this.couplerGlowMat.emissive.setHex(0x0ea5e9);
+      this.couplerGlowMat.emissiveIntensity = (0.55 + revEnergy * 0.65) * energyPulse;
+      this.conduitEnergyMat.emissive.setHex(0x451a03);
+      this.conduitEnergyMat.emissiveIntensity = 0.18 + revEnergy * 0.25 + maxHeat * 0.65;
+    }
 
     // Update left & right engine animations
     this.flapFlareLeft = THREE.MathUtils.lerp(
@@ -264,7 +346,7 @@ export class PodMeshBuilder {
 
     // Ensure matrices are current before computing local attachment points
     this.podRoot.updateMatrixWorld(true);
-    const invRoot = this.podRoot.matrixWorld.clone().invert();
+    const invRoot = this.tmpInvRoot.copy(this.podRoot.matrixWorld).invert();
 
     // Update Plasma Binder Arc
     this.leftEngine.emitterWorldDummy.getWorldPosition(this.tmpA).applyMatrix4(invRoot);
@@ -285,14 +367,28 @@ export class PodMeshBuilder {
       arc.line.geometry.attributes.position.needsUpdate = true;
     }
 
-    // Update Twin Control Tether Cables
+    // Update Twin Detailed Multi-Strand Control Tether Cables
     this.leftEngine.pylonDummy.getWorldPosition(this.tmpA).applyMatrix4(invRoot);
     this.cockpitLeftArmDummy.getWorldPosition(this.tmpB).applyMatrix4(invRoot);
-    this.updateCableGeometry(this.leftCable, this.tmpA, this.tmpB, t.speedMs);
+    this.updateDetailedCable(
+      this.leftCable,
+      this.tmpA,
+      this.tmpB,
+      t,
+      t.pLeft,
+      elapsedTime
+    );
 
     this.rightEngine.pylonDummy.getWorldPosition(this.tmpA).applyMatrix4(invRoot);
     this.cockpitRightArmDummy.getWorldPosition(this.tmpB).applyMatrix4(invRoot);
-    this.updateCableGeometry(this.rightCable, this.tmpA, this.tmpB, t.speedMs);
+    this.updateDetailedCable(
+      this.rightCable,
+      this.tmpA,
+      this.tmpB,
+      t,
+      t.pRight,
+      elapsedTime
+    );
   }
 
   private updateEngineVisuals(
@@ -459,8 +555,119 @@ export class PodMeshBuilder {
     return { dustColorTex, dustRoughnessTex };
   }
 
+  private createCableTextures(): {
+    cableColorTex: THREE.CanvasTexture;
+    cableBumpTex: THREE.CanvasTexture;
+  } {
+    const size = 256;
+    const colorCanvas = document.createElement('canvas');
+    colorCanvas.width = size;
+    colorCanvas.height = size;
+    const cctx = colorCanvas.getContext('2d')!;
+
+    const bumpCanvas = document.createElement('canvas');
+    bumpCanvas.width = size;
+    bumpCanvas.height = size;
+    const bctx = bumpCanvas.getContext('2d')!;
+
+    // Dark recessed steel wire-rope base
+    cctx.fillStyle = '#252a33';
+    cctx.fillRect(0, 0, size, size);
+    bctx.fillStyle = '#202020';
+    bctx.fillRect(0, 0, size, size);
+
+    // 6 diagonal twisted braided steel strands (seamless tileable diagonals)
+    const strands = 6;
+    const step = size / strands;
+    for (let k = -strands; k <= strands * 2; k++) {
+      const x0 = k * step;
+
+      // Primary raised steel strand ridge
+      const grad = cctx.createLinearGradient(x0, 0, x0 + step * 0.72, 0);
+      grad.addColorStop(0.0, '#1c2028');
+      grad.addColorStop(0.28, '#5a6475');
+      grad.addColorStop(0.52, '#9ca8ba');
+      grad.addColorStop(0.76, '#4c5564');
+      grad.addColorStop(1.0, '#181c22');
+
+      cctx.strokeStyle = grad;
+      cctx.lineWidth = step * 0.68;
+      cctx.beginPath();
+      cctx.moveTo(x0, 0);
+      cctx.lineTo(x0 + size, size);
+      cctx.stroke();
+
+      // Bump ridge
+      bctx.strokeStyle = '#e8e8e8';
+      bctx.lineWidth = step * 0.48;
+      bctx.beginPath();
+      bctx.moveTo(x0, 0);
+      bctx.lineTo(x0 + size, size);
+      bctx.stroke();
+
+      // Fine sub-wire cross-hatch scoring across each strand
+      cctx.strokeStyle = 'rgba(220, 230, 244, 0.22)';
+      cctx.lineWidth = 2;
+      cctx.beginPath();
+      cctx.moveTo(x0 + step * 0.14, 0);
+      cctx.lineTo(x0 + size + step * 0.14, size);
+      cctx.stroke();
+
+      // Deep dark inter-strand valley
+      cctx.strokeStyle = 'rgba(10, 13, 18, 0.85)';
+      cctx.lineWidth = 4;
+      cctx.beginPath();
+      cctx.moveTo(x0 + step * 0.5, 0);
+      cctx.lineTo(x0 + size + step * 0.5, size);
+      cctx.stroke();
+
+      bctx.strokeStyle = '#0a0a0a';
+      bctx.lineWidth = 5;
+      bctx.beginPath();
+      bctx.moveTo(x0 + step * 0.5, 0);
+      bctx.lineTo(x0 + size + step * 0.5, size);
+      bctx.stroke();
+    }
+
+    // Subtle cross-wire weave ribs & weathered desert oil patina
+    for (let y = 0; y < size; y += 8) {
+      cctx.fillStyle = y % 16 === 0 ? 'rgba(20, 24, 30, 0.24)' : 'rgba(180, 145, 105, 0.08)';
+      cctx.fillRect(0, y, size, 2);
+      bctx.fillStyle = y % 16 === 0 ? 'rgba(0, 0, 0, 0.28)' : 'rgba(255, 255, 255, 0.12)';
+      bctx.fillRect(0, y, size, 2);
+    }
+
+    const cableColorTex = new THREE.CanvasTexture(colorCanvas);
+    cableColorTex.wrapS = THREE.RepeatWrapping;
+    cableColorTex.wrapT = THREE.RepeatWrapping;
+    cableColorTex.colorSpace = THREE.SRGBColorSpace;
+
+    const cableBumpTex = new THREE.CanvasTexture(bumpCanvas);
+    cableBumpTex.wrapS = THREE.RepeatWrapping;
+    cableBumpTex.wrapT = THREE.RepeatWrapping;
+
+    return { cableColorTex, cableBumpTex };
+  }
+
   private createMaterials() {
     const { dustColorTex, dustRoughnessTex } = this.createCabinDustTextures();
+    const { cableColorTex, cableBumpTex } = this.createCableTextures();
+    this.conduitEnergyMat = new THREE.MeshStandardMaterial({
+      color: 0xc87a34,
+      emissive: 0x451a03,
+      emissiveIntensity: 0.25,
+      bumpMap: cableBumpTex,
+      bumpScale: 0.012,
+      metalness: 0.78,
+      roughness: 0.3,
+    });
+    this.couplerGlowMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x0ea5e9,
+      emissiveIntensity: 0.7,
+      roughness: 0.2,
+      metalness: 0.3,
+    });
     return {
       steel: new THREE.MeshStandardMaterial({
         color: 0x9aa4b0,
@@ -533,10 +740,22 @@ export class PodMeshBuilder {
         roughness: 0.3,
       }),
       cable: new THREE.MeshStandardMaterial({
-        color: 0x353b45,
-        metalness: 0.8,
-        roughness: 0.35,
+        color: 0xc2cbd8,
+        map: cableColorTex,
+        bumpMap: cableBumpTex,
+        bumpScale: 0.02,
+        metalness: 0.84,
+        roughness: 0.34,
       }),
+      conduitData: new THREE.MeshStandardMaterial({
+        color: 0x202630,
+        bumpMap: cableBumpTex,
+        bumpScale: 0.014,
+        metalness: 0.42,
+        roughness: 0.62,
+      }),
+      conduitEnergy: this.conduitEnergyMat,
+      couplerGlow: this.couplerGlowMat,
       seat: new THREE.MeshStandardMaterial({
         color: 0x1e2229,
         metalness: 0.2,
@@ -858,9 +1077,63 @@ export class PodMeshBuilder {
     emitterWorldDummy.position.set(-sideSign * 0.52, 0, -2.25);
     root.add(emitterWorldDummy);
 
-    // 7. Top-Rear Tether Pylon Dummy
+    // 7. Articulated Top-Rear Tether Pylon, Gimbal Yoke & Hydraulic Conduit Manifold
+    const pylonGroup = new THREE.Group();
+    pylonGroup.position.set(-sideSign * 0.14, 0.47, -1.06);
+
+    // Curved mounting saddle bolted onto the engine barrel
+    const saddleGeo = new THREE.BoxGeometry(0.24, 0.08, 0.56);
+    const saddleMesh = new THREE.Mesh(saddleGeo, mats.gunmetal);
+    saddleMesh.castShadow = true;
+    pylonGroup.add(saddleMesh);
+
+    // Twin gusseted steel pylon cheeks rising to the gimbal yoke
+    for (const side of [-1, 1] as const) {
+      const cheekGeo = new THREE.BoxGeometry(0.042, 0.16, 0.34);
+      cheekGeo.translate(side * 0.085, 0.085, -0.02);
+      const cheek = new THREE.Mesh(cheekGeo, mats.steel);
+      cheek.castShadow = true;
+      pylonGroup.add(cheek);
+    }
+
+    // Yellow hazard trim tab on outer pylon flank
+    const pylonTrimGeo = new THREE.BoxGeometry(0.024, 0.075, 0.26);
+    pylonTrimGeo.translate(sideSign * 0.115, 0.06, -0.03);
+    pylonGroup.add(new THREE.Mesh(pylonTrimGeo, mats.yellow));
+
+    // Heavy swivel clevis barrel & horizontal copper pivot pin
+    const gimbalGeo = new THREE.CylinderGeometry(0.068, 0.074, 0.22, 14);
+    gimbalGeo.rotateX(Math.PI / 2);
+    gimbalGeo.translate(0, 0.125, 0.06);
+    pylonGroup.add(new THREE.Mesh(gimbalGeo, mats.gunmetal));
+
+    const pivotPinGeo = new THREE.CylinderGeometry(0.032, 0.032, 0.26, 12);
+    pivotPinGeo.rotateZ(Math.PI / 2);
+    pivotPinGeo.translate(0, 0.125, 0.0);
+    pylonGroup.add(new THREE.Mesh(pivotPinGeo, mats.copper));
+
+    // Aft-facing ribbed strain-relief boot where the braided cable exits
+    const bootGeo = new THREE.CylinderGeometry(0.048, 0.066, 0.18, 12);
+    bootGeo.rotateX(Math.PI / 2);
+    bootGeo.translate(0, 0.125, 0.19);
+    pylonGroup.add(new THREE.Mesh(bootGeo, mats.gunmetal));
+
+    const bootRingGeo = new THREE.TorusGeometry(0.056, 0.012, 8, 16);
+    bootRingGeo.translate(0, 0.125, 0.24);
+    pylonGroup.add(new THREE.Mesh(bootRingGeo, mats.copper));
+
+    // Secondary hydraulic/telemetry manifold ports under the boot
+    for (const ps of [-1, 1] as const) {
+      const portGeo = new THREE.CylinderGeometry(0.02, 0.024, 0.14, 8);
+      portGeo.rotateX(Math.PI / 2);
+      portGeo.translate(ps * 0.042, 0.055, 0.16);
+      pylonGroup.add(new THREE.Mesh(portGeo, ps < 0 ? mats.copper : mats.steel));
+    }
+
+    root.add(pylonGroup);
+
     const pylonDummy = new THREE.Object3D();
-    pylonDummy.position.set(-sideSign * 0.13, 0.50, -1.05);
+    pylonDummy.position.set(-sideSign * 0.14, 0.595, -0.82);
     root.add(pylonDummy);
 
     // 8. Optional Pod Modification Attachments (all hidden for stock unmodified pod)
@@ -1133,15 +1406,48 @@ export class PodMeshBuilder {
       if (s < 0) this.cockpitLeftWingGroup = cheekGroup;
       else this.cockpitRightWingGroup = cheekGroup;
 
-      // Compact beveled gunmetal tether shackle integrated into forward nose chine
+      // Reinforced beveled gunmetal & steel tether clevis yoke integrated into forward nose chine
       const armGroup = new THREE.Group();
       armGroup.position.set(s * 0.34, 0.06, -0.82);
-      const shackleGeo = new THREE.CylinderGeometry(0.055, 0.065, 0.20, 16);
-      shackleGeo.rotateX(Math.PI / 2);
-      shackleGeo.rotateY(s * -0.32);
-      const shackle = new THREE.Mesh(shackleGeo, mats.gunmetal);
-      shackle.castShadow = true;
-      armGroup.add(shackle);
+      armGroup.rotation.y = s * -0.22;
+
+      const mountFlangeGeo = new THREE.BoxGeometry(0.14, 0.12, 0.24);
+      const mountFlange = new THREE.Mesh(mountFlangeGeo, mats.gunmetal);
+      mountFlange.castShadow = true;
+      armGroup.add(mountFlange);
+
+      for (const jaw of [-1, 1] as const) {
+        const jawGeo = new THREE.BoxGeometry(0.032, 0.11, 0.18);
+        jawGeo.translate(jaw * 0.052, 0.0, -0.14);
+        const jawMesh = new THREE.Mesh(jawGeo, mats.steel);
+        jawMesh.castShadow = true;
+        armGroup.add(jawMesh);
+      }
+
+      const clevisPinGeo = new THREE.CylinderGeometry(0.026, 0.026, 0.17, 12);
+      clevisPinGeo.rotateZ(Math.PI / 2);
+      clevisPinGeo.translate(0, 0, -0.15);
+      armGroup.add(new THREE.Mesh(clevisPinGeo, mats.copper));
+
+      const fairleadGeo = new THREE.CylinderGeometry(0.044, 0.06, 0.15, 12);
+      fairleadGeo.rotateX(Math.PI / 2);
+      fairleadGeo.translate(0, 0, -0.22);
+      const fairlead = new THREE.Mesh(fairleadGeo, mats.gunmetal);
+      fairlead.castShadow = true;
+      armGroup.add(fairlead);
+
+      const collarRingGeo = new THREE.TorusGeometry(0.052, 0.011, 8, 16);
+      collarRingGeo.translate(0, 0, -0.26);
+      armGroup.add(new THREE.Mesh(collarRingGeo, mats.copper));
+
+      // Auxiliary conduit quick-disconnect sockets under the main fairlead
+      for (const ps of [-1, 1] as const) {
+        const sockGeo = new THREE.CylinderGeometry(0.018, 0.022, 0.12, 8);
+        sockGeo.rotateX(Math.PI / 2);
+        sockGeo.translate(ps * 0.035, -0.058, -0.18);
+        armGroup.add(new THREE.Mesh(sockGeo, ps < 0 ? mats.copper : mats.steel));
+      }
+
       this.cockpitGroup.add(armGroup);
       if (s < 0) this.cockpitLeftArmGroup = armGroup;
       else this.cockpitRightArmGroup = armGroup;
@@ -1341,74 +1647,399 @@ export class PodMeshBuilder {
     // Keep empty pilot group attached for telemetry compatibility
     this.cockpitGroup.add(this.cockpitPilotGroup);
 
-    // 9. Tether attachment dummies aligned to integrated nose shackles
-    this.cockpitLeftArmDummy.position.set(-0.38, 0.06, -0.90);
-    this.cockpitRightArmDummy.position.set(0.38, 0.06, -0.90);
+    // 9. Tether attachment dummies aligned to integrated nose fairlead tips
+    this.cockpitLeftArmDummy.position.set(-0.40, 0.06, -1.08);
+    this.cockpitRightArmDummy.position.set(0.40, 0.06, -1.08);
     this.cockpitGroup.add(this.cockpitLeftArmDummy, this.cockpitRightArmDummy);
   }
 
-  private createCableBuffer(material: THREE.Material): CableBuffer {
-    const vertCount = (CABLE_RINGS + 1) * CABLE_SIDES;
+  private createCableBuffer(
+    material: THREE.Material,
+    rings: number,
+    sides: number,
+    uvRepeatU: number,
+    uvRepeatV: number
+  ): CableBuffer {
+    const cols = sides + 1;
+    const vertCount = (rings + 1) * cols;
     const positions = new Float32Array(vertCount * 3);
+    const uvs = new Float32Array(vertCount * 2);
     const indices: number[] = [];
 
-    for (let r = 0; r < CABLE_RINGS; r++) {
-      for (let s = 0; s < CABLE_SIDES; s++) {
-        const nextS = (s + 1) % CABLE_SIDES;
-        const a = r * CABLE_SIDES + s;
-        const b = r * CABLE_SIDES + nextS;
-        const c = (r + 1) * CABLE_SIDES + s;
-        const d = (r + 1) * CABLE_SIDES + nextS;
-        indices.push(a, c, b, b, c, d);
+    let uvPtr = 0;
+    for (let r = 0; r <= rings; r++) {
+      const v = (r / rings) * uvRepeatV;
+      for (let s = 0; s <= sides; s++) {
+        uvs[uvPtr++] = (s / sides) * uvRepeatU;
+        uvs[uvPtr++] = v;
+      }
+    }
+
+    for (let r = 0; r < rings; r++) {
+      for (let s = 0; s < sides; s++) {
+        const a = r * cols + s;
+        const b = r * cols + (s + 1);
+        const c = (r + 1) * cols + s;
+        const d = (r + 1) * cols + (s + 1);
+        indices.push(a, b, c, b, d, c);
       }
     }
 
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     geometry.setIndex(indices);
 
     const mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = true;
     mesh.frustumCulled = false;
-    return { mesh, geometry, positions };
+    return { mesh, geometry, positions, rings, sides };
   }
 
-  private updateCableGeometry(
-    cable: CableBuffer,
-    start: THREE.Vector3,
-    end: THREE.Vector3,
-    speedMs: number
-  ): void {
-    // Midpoint sags slightly at rest, pulls taut at high speed
-    const tautness = Math.min(1, speedMs / 65);
-    const sag = THREE.MathUtils.lerp(0.32, 0.05, tautness);
-    this.tmpMid.copy(start).lerp(end, 0.5);
-    this.tmpMid.y -= sag;
+  private createCableHardwareMount(
+    kind: 'engine_turnbuckle' | 'mid_damper' | 'cockpit_ferrule' | 'spacer_clamp',
+    mats: ReturnType<PodMeshBuilder['createMaterials']>
+  ): THREE.Group {
+    const g = new THREE.Group();
 
-    this.tmpCurve.v0.copy(start);
-    this.tmpCurve.v1.copy(this.tmpMid);
-    this.tmpCurve.v2.copy(end);
+    if (kind === 'engine_turnbuckle') {
+      // Heavy stepped hydraulic tensioner sleeve near engine pylon
+      const bodyGeo = new THREE.CylinderGeometry(0.068, 0.072, 0.30, 12);
+      bodyGeo.rotateX(Math.PI / 2);
+      g.add(new THREE.Mesh(bodyGeo, mats.gunmetal));
 
-    const pos = cable.positions;
-    let ptr = 0;
-    for (let r = 0; r <= CABLE_RINGS; r++) {
-      const u = r / CABLE_RINGS;
-      const pt = this.tmpCurve.getPoint(u, this.tmpMid);
-      const tan = this.tmpCurve.getTangent(u, this.tmpTan).normalize();
-      this.tmpNorm.crossVectors(tan, this.tmpUp).normalize();
-      this.tmpBinorm.crossVectors(this.tmpNorm, tan).normalize();
-
-      for (let s = 0; s < CABLE_SIDES; s++) {
-        const ang = (s / CABLE_SIDES) * Math.PI * 2;
-        const ca = Math.cos(ang) * CABLE_RADIUS;
-        const sa = Math.sin(ang) * CABLE_RADIUS;
-        pos[ptr++] = pt.x + this.tmpNorm.x * ca + this.tmpBinorm.x * sa;
-        pos[ptr++] = pt.y + this.tmpNorm.y * ca + this.tmpBinorm.y * sa;
-        pos[ptr++] = pt.z + this.tmpNorm.z * ca + this.tmpBinorm.z * sa;
+      for (const zOff of [-0.14, 0.14]) {
+        const nutGeo = new THREE.CylinderGeometry(0.082, 0.082, 0.055, 6);
+        nutGeo.rotateX(Math.PI / 2);
+        nutGeo.translate(0, 0, zOff);
+        g.add(new THREE.Mesh(nutGeo, mats.copper));
       }
+
+      const bandGeo = new THREE.CylinderGeometry(0.074, 0.074, 0.06, 12);
+      bandGeo.rotateX(Math.PI / 2);
+      g.add(new THREE.Mesh(bandGeo, mats.yellow));
+
+      // Lower dual-conduit bundling cradle
+      const cradleGeo = new THREE.BoxGeometry(0.11, 0.06, 0.12);
+      cradleGeo.translate(0, -0.058, 0);
+      g.add(new THREE.Mesh(cradleGeo, mats.steel));
+    } else if (kind === 'mid_damper') {
+      // Mid-span inline load-damper / telemetry junction coupler
+      const coreGeo = new THREE.CylinderGeometry(0.076, 0.076, 0.36, 12);
+      coreGeo.rotateX(Math.PI / 2);
+      g.add(new THREE.Mesh(coreGeo, mats.gunmetal));
+
+      for (const zOff of [-0.17, 0.17]) {
+        const capGeo = new THREE.CylinderGeometry(0.064, 0.08, 0.07, 12);
+        capGeo.rotateX(Math.PI / 2);
+        capGeo.translate(0, 0, zOff);
+        g.add(new THREE.Mesh(capGeo, mats.steel));
+      }
+
+      for (const zOff of [-0.085, 0.085]) {
+        const ringGeo = new THREE.TorusGeometry(0.078, 0.013, 8, 16);
+        ringGeo.translate(0, 0, zOff);
+        g.add(new THREE.Mesh(ringGeo, mats.copper));
+      }
+
+      // Subtle glowing load-telemetry band around center of coupler
+      const glowRingGeo = new THREE.CylinderGeometry(0.08, 0.08, 0.036, 14);
+      glowRingGeo.rotateX(Math.PI / 2);
+      g.add(new THREE.Mesh(glowRingGeo, mats.couplerGlow));
+
+      // Twin side cooling ribs & lower conduit bridge
+      const bridgeGeo = new THREE.BoxGeometry(0.12, 0.065, 0.24);
+      bridgeGeo.translate(0, -0.062, 0);
+      g.add(new THREE.Mesh(bridgeGeo, mats.gunmetal));
+    } else if (kind === 'cockpit_ferrule') {
+      // Cockpit-side swage ferrule & locking nut
+      const bodyGeo = new THREE.CylinderGeometry(0.066, 0.058, 0.24, 12);
+      bodyGeo.rotateX(Math.PI / 2);
+      g.add(new THREE.Mesh(bodyGeo, mats.steel));
+
+      const nutGeo = new THREE.CylinderGeometry(0.076, 0.076, 0.055, 6);
+      nutGeo.rotateX(Math.PI / 2);
+      nutGeo.translate(0, 0, -0.09);
+      g.add(new THREE.Mesh(nutGeo, mats.copper));
+
+      const cradleGeo = new THREE.BoxGeometry(0.105, 0.055, 0.11);
+      cradleGeo.translate(0, -0.055, 0);
+      g.add(new THREE.Mesh(cradleGeo, mats.gunmetal));
+    } else {
+      // Intermediate bundling P-clamp / spacer collar
+      const ringGeo = new THREE.CylinderGeometry(0.062, 0.062, 0.09, 10);
+      ringGeo.rotateX(Math.PI / 2);
+      g.add(new THREE.Mesh(ringGeo, mats.gunmetal));
+
+      const accentGeo = new THREE.TorusGeometry(0.063, 0.01, 6, 12);
+      g.add(new THREE.Mesh(accentGeo, mats.copper));
+
+      // Bottom conduit bundler clip holding both companion lines snug to main cable
+      const clipGeo = new THREE.BoxGeometry(0.098, 0.058, 0.072);
+      clipGeo.translate(0, -0.054, 0);
+      g.add(new THREE.Mesh(clipGeo, mats.steel));
     }
 
-    cable.geometry.attributes.position.needsUpdate = true;
-    cable.geometry.computeVertexNormals();
+    return g;
+  }
+
+  private createDetailedCableAssembly(
+    sideSign: -1 | 1,
+    mats: ReturnType<PodMeshBuilder['createMaterials']>
+  ): DetailedCableAssembly {
+    const group = new THREE.Group();
+
+    const mainCable = this.createCableBuffer(
+      mats.cable,
+      MAIN_CABLE_RINGS,
+      MAIN_CABLE_SIDES,
+      2,
+      26
+    );
+    const energyConduit = this.createCableBuffer(
+      mats.conduitEnergy,
+      AUX_CABLE_RINGS,
+      AUX_CABLE_SIDES,
+      1,
+      22
+    );
+    const dataConduit = this.createCableBuffer(
+      mats.conduitData,
+      AUX_CABLE_RINGS,
+      AUX_CABLE_SIDES,
+      1,
+      22
+    );
+    group.add(mainCable.mesh, energyConduit.mesh, dataConduit.mesh);
+
+    const mounts: CableHardwareMount[] = [];
+    for (let i = 0; i < CABLE_MOUNT_US.length; i++) {
+      const u = CABLE_MOUNT_US[i];
+      const kind =
+        i === 0
+          ? 'engine_turnbuckle'
+          : i === CABLE_MOUNT_US.length - 1
+            ? 'cockpit_ferrule'
+            : i === 3
+              ? 'mid_damper'
+              : 'spacer_clamp';
+      const node = this.createCableHardwareMount(kind, mats);
+      group.add(node);
+      mounts.push({ node, u });
+    }
+
+    return {
+      group,
+      mainCable,
+      energyConduit,
+      dataConduit,
+      mounts,
+      sideSign,
+    };
+  }
+
+  private computeBetweenClampFactor(u: number): number {
+    let minDist = Math.min(u, 1 - u);
+    for (let i = 0; i < CABLE_MOUNT_US.length; i++) {
+      const d = Math.abs(u - CABLE_MOUNT_US[i]);
+      if (d < minDist) minDist = d;
+    }
+    const norm = THREE.MathUtils.clamp(minDist / 0.075, 0, 1);
+    return Math.sin(norm * Math.PI * 0.5);
+  }
+
+  private updateDetailedCable(
+    assembly: DetailedCableAssembly,
+    start: THREE.Vector3,
+    end: THREE.Vector3,
+    t: PodTelemetry,
+    sidePower: number,
+    elapsedTime: number
+  ): void {
+    // Per-side tension: engine forward thrust + speed + boost + opposite-side lateral pull
+    const fwdThrust = Math.max(0, sidePower);
+    const reverseSlack = sidePower < -0.05 ? 0.38 : 0;
+    const stretchBias = THREE.MathUtils.clamp(
+      -assembly.sideSign * t.cockpitLatOffset * 0.28,
+      -0.22,
+      0.35
+    );
+    const speedTaut = THREE.MathUtils.clamp(t.speedMs / 72, 0, 1);
+    const tension = THREE.MathUtils.clamp(
+      0.1 +
+        speedTaut * 0.42 +
+        fwdThrust * 0.46 +
+        t.landingBoost * 0.35 +
+        (t.nitroActive ? 0.3 : 0) +
+        stretchBias -
+        reverseSlack -
+        (!t.isGrounded && fwdThrust < 0.05 ? 0.22 : 0),
+      0.04,
+      1.0
+    );
+
+    const chord = this.tmpChord.copy(end).sub(start);
+    const dist = Math.max(0.5, chord.length());
+    chord.divideScalar(dist);
+
+    // Smoothly align exit & entry tangents with engine pylon (+Z) and cockpit shackle (-Z)
+    this.tmpExitDir.set(0, -0.04, 1).lerp(chord, 0.62).normalize();
+    this.tmpEntryDir.set(0, -0.02, -1).lerp(this.tmpMid.copy(chord).negate(), 0.68).normalize();
+
+    const sag = THREE.MathUtils.lerp(0.56, 0.045, tension);
+    const whipLat =
+      -t.cockpitLatVel * 0.042 * (1.15 - tension * 0.55) +
+      Math.sin(elapsedTime * (7.5 + speedTaut * 18.0) + assembly.sideSign * 1.4) *
+        (0.018 + (1 - tension) * 0.032 + speedTaut * 0.015);
+    const whipVert =
+      -t.cockpitVertVel * 0.038 * (1.15 - tension * 0.5) +
+      Math.cos(elapsedTime * (9.2 + speedTaut * 16.0) + assembly.sideSign * 0.9) *
+        (0.014 + (1 - tension) * 0.024);
+
+    const handleLen = dist * 0.34;
+    this.tmpP1
+      .copy(start)
+      .addScaledVector(this.tmpExitDir, handleLen);
+    this.tmpP1.x += whipLat * 0.85;
+    this.tmpP1.y -= sag * 1.05 - whipVert * 0.8;
+
+    this.tmpP2
+      .copy(end)
+      .addScaledVector(this.tmpEntryDir, handleLen);
+    this.tmpP2.x += whipLat * 1.15;
+    this.tmpP2.y -= sag * 1.18 - whipVert * 1.15;
+
+    this.tmpCurve.v0.copy(start);
+    this.tmpCurve.v1.copy(this.tmpP1);
+    this.tmpCurve.v2.copy(this.tmpP2);
+    this.tmpCurve.v3.copy(end);
+
+    this.updateCableBundleFromCurve(assembly, 1 - tension, elapsedTime);
+  }
+
+  private updateCableBundleFromCurve(
+    assembly: DetailedCableAssembly,
+    slackness: number,
+    elapsedTime: number
+  ): void {
+    // 1. Primary thick braided steel control cable
+    const main = assembly.mainCable;
+    const mainPos = main.positions;
+    let ptr = 0;
+    for (let r = 0; r <= main.rings; r++) {
+      const u = r / main.rings;
+      const pt = this.tmpCurve.getPoint(u, this.tmpMid);
+      const tan = this.tmpCurve.getTangent(u, this.tmpTan);
+      if (tan.lengthSq() < 1e-6) tan.set(0, 0, 1);
+      else tan.normalize();
+
+      this.tmpNorm.crossVectors(this.tmpUp, tan);
+      if (this.tmpNorm.lengthSq() < 1e-5) this.tmpNorm.set(1, 0, 0);
+      else this.tmpNorm.normalize();
+      this.tmpBinorm.crossVectors(tan, this.tmpNorm).normalize();
+
+      // Subtle ferrule flare at both sockets
+      const endFlare = u < 0.05 || u > 0.95 ? 1.14 : 1.0;
+      const rad = MAIN_CABLE_RADIUS * endFlare;
+
+      for (let s = 0; s <= main.sides; s++) {
+        const ang = (s / main.sides) * Math.PI * 2;
+        const ca = Math.cos(ang) * rad;
+        const sa = Math.sin(ang) * rad;
+        mainPos[ptr++] = pt.x + this.tmpNorm.x * ca + this.tmpBinorm.x * sa;
+        mainPos[ptr++] = pt.y + this.tmpNorm.y * ca + this.tmpBinorm.y * sa;
+        mainPos[ptr++] = pt.z + this.tmpNorm.z * ca + this.tmpBinorm.z * sa;
+      }
+    }
+    main.geometry.attributes.position.needsUpdate = true;
+    main.geometry.computeVertexNormals();
+
+    // 2. Twin companion conduits (copper hydraulic-power line & dark ribbed data umbilical)
+    // Clamped tight at every P-clamp/coupler and bowing organically in the spans between clamps
+    const auxSpecs: Array<{
+      buf: CableBuffer;
+      radius: number;
+      latDir: number;
+      droopBase: number;
+      phase: number;
+    }> = [
+      {
+        buf: assembly.energyConduit,
+        radius: ENERGY_CONDUIT_RADIUS,
+        latDir: -assembly.sideSign,
+        droopBase: 0.054,
+        phase: 0.0,
+      },
+      {
+        buf: assembly.dataConduit,
+        radius: DATA_CONDUIT_RADIUS,
+        latDir: assembly.sideSign,
+        droopBase: 0.05,
+        phase: 2.3,
+      },
+    ];
+
+    for (let c = 0; c < auxSpecs.length; c++) {
+      const spec = auxSpecs[c];
+      const buf = spec.buf;
+      const pos = buf.positions;
+      let aPtr = 0;
+      for (let r = 0; r <= buf.rings; r++) {
+        const u = r / buf.rings;
+        const pt = this.tmpCurve.getPoint(u, this.tmpMid);
+        const tan = this.tmpCurve.getTangent(u, this.tmpTan);
+        if (tan.lengthSq() < 1e-6) tan.set(0, 0, 1);
+        else tan.normalize();
+
+        this.tmpNorm.crossVectors(this.tmpUp, tan);
+        if (this.tmpNorm.lengthSq() < 1e-5) this.tmpNorm.set(1, 0, 0);
+        else this.tmpNorm.normalize();
+        this.tmpBinorm.crossVectors(tan, this.tmpNorm).normalize();
+
+        const between = this.computeBetweenClampFactor(u);
+        const flutter =
+          Math.sin(elapsedTime * 11.5 + u * 18.0 + spec.phase) *
+          (0.004 + slackness * 0.008) *
+          between;
+        const latOff = spec.latDir * (0.024 + between * (0.016 + slackness * 0.014)) + flutter;
+        const downOff =
+          -(spec.droopBase + between * (0.026 + slackness * 0.048));
+
+        this.tmpAuxPt
+          .copy(pt)
+          .addScaledVector(this.tmpNorm, latOff)
+          .addScaledVector(this.tmpBinorm, downOff);
+
+        for (let s = 0; s <= buf.sides; s++) {
+          const ang = (s / buf.sides) * Math.PI * 2;
+          const ca = Math.cos(ang) * spec.radius;
+          const sa = Math.sin(ang) * spec.radius;
+          pos[aPtr++] = this.tmpAuxPt.x + this.tmpNorm.x * ca + this.tmpBinorm.x * sa;
+          pos[aPtr++] = this.tmpAuxPt.y + this.tmpNorm.y * ca + this.tmpBinorm.y * sa;
+          pos[aPtr++] = this.tmpAuxPt.z + this.tmpNorm.z * ca + this.tmpBinorm.z * sa;
+        }
+      }
+      buf.geometry.attributes.position.needsUpdate = true;
+      buf.geometry.computeVertexNormals();
+    }
+
+    // 3. Position & orient articulated turnbuckles, mid-span damper & bundling P-clamps
+    for (let i = 0; i < assembly.mounts.length; i++) {
+      const m = assembly.mounts[i];
+      this.tmpCurve.getPoint(m.u, m.node.position);
+      const tan = this.tmpCurve.getTangent(m.u, this.tmpTan);
+      if (tan.lengthSq() < 1e-6) tan.set(0, 0, 1);
+      else tan.normalize();
+
+      // Basis: X = right (tmpNorm), Y = up (tmpBinorm), Z = tangent along cable
+      this.tmpNorm.crossVectors(this.tmpUp, tan);
+      if (this.tmpNorm.lengthSq() < 1e-5) this.tmpNorm.set(1, 0, 0);
+      else this.tmpNorm.normalize();
+      this.tmpBinorm.crossVectors(tan, this.tmpNorm).normalize();
+
+      this.tmpBasisMat.makeBasis(this.tmpNorm, this.tmpBinorm, tan);
+      m.node.quaternion.setFromRotationMatrix(this.tmpBasisMat);
+    }
   }
 
   public getDetachableParts(): DetachablePartDescriptor[] {
@@ -1630,13 +2261,13 @@ export class PodMeshBuilder {
 
   public detachCablesAndPlasmaToGroup(targetGroup: THREE.Group): void {
     this.damperLight.intensity = 0;
-    this.leftCable.mesh.position.set(0, 0, 0);
-    this.leftCable.mesh.rotation.set(0, 0, 0);
-    this.leftCable.mesh.scale.set(1, 1, 1);
-    this.rightCable.mesh.position.set(0, 0, 0);
-    this.rightCable.mesh.rotation.set(0, 0, 0);
-    this.rightCable.mesh.scale.set(1, 1, 1);
-    targetGroup.add(this.leftCable.mesh, this.rightCable.mesh);
+    this.leftCable.group.position.set(0, 0, 0);
+    this.leftCable.group.rotation.set(0, 0, 0);
+    this.leftCable.group.scale.set(1, 1, 1);
+    this.rightCable.group.position.set(0, 0, 0);
+    this.rightCable.group.rotation.set(0, 0, 0);
+    this.rightCable.group.scale.set(1, 1, 1);
+    targetGroup.add(this.leftCable.group, this.rightCable.group);
 
     for (const arc of this.plasmaLines) {
       arc.line.position.set(0, 0, 0);
@@ -1652,41 +2283,16 @@ export class PodMeshBuilder {
     worldEnd: THREE.Vector3,
     whipMidWorld: THREE.Vector3
   ): void {
-    const cable = side === 'left' ? this.leftCable : this.rightCable;
+    const assembly = side === 'left' ? this.leftCable : this.rightCable;
+    // Exact degree elevation from Quadratic Bezier (start, mid, end) to Cubic Bezier
+    this.tmpP1.copy(worldStart).lerp(whipMidWorld, 2 / 3);
+    this.tmpP2.copy(worldEnd).lerp(whipMidWorld, 2 / 3);
     this.tmpCurve.v0.copy(worldStart);
-    this.tmpCurve.v1.copy(whipMidWorld);
-    this.tmpCurve.v2.copy(worldEnd);
+    this.tmpCurve.v1.copy(this.tmpP1);
+    this.tmpCurve.v2.copy(this.tmpP2);
+    this.tmpCurve.v3.copy(worldEnd);
 
-    const pos = cable.positions;
-    let ptr = 0;
-    for (let r = 0; r <= CABLE_RINGS; r++) {
-      const u = r / CABLE_RINGS;
-      const pt = this.tmpCurve.getPoint(u, this.tmpMid);
-      const tan = this.tmpCurve.getTangent(u, this.tmpTan);
-      if (tan.lengthSq() < 1e-6) {
-        tan.set(0, 0, 1);
-      } else {
-        tan.normalize();
-      }
-      this.tmpNorm.crossVectors(tan, this.tmpUp);
-      if (this.tmpNorm.lengthSq() < 1e-5) {
-        this.tmpNorm.set(1, 0, 0);
-      } else {
-        this.tmpNorm.normalize();
-      }
-      this.tmpBinorm.crossVectors(this.tmpNorm, tan).normalize();
-
-      for (let s = 0; s < CABLE_SIDES; s++) {
-        const ang = (s / CABLE_SIDES) * Math.PI * 2;
-        const ca = Math.cos(ang) * CABLE_RADIUS;
-        const sa = Math.sin(ang) * CABLE_RADIUS;
-        pos[ptr++] = pt.x + this.tmpNorm.x * ca + this.tmpBinorm.x * sa;
-        pos[ptr++] = pt.y + this.tmpNorm.y * ca + this.tmpBinorm.y * sa;
-        pos[ptr++] = pt.z + this.tmpNorm.z * ca + this.tmpBinorm.z * sa;
-      }
-    }
-    cable.geometry.attributes.position.needsUpdate = true;
-    cable.geometry.computeVertexNormals();
+    this.updateCableBundleFromCurve(assembly, 0.95, performance.now() * 0.001);
   }
 
   public updateSeveringPlasmaWorld(
@@ -1776,7 +2382,7 @@ export class PodMeshBuilder {
 
   public restoreAfterDisassembly(mod: PodModificationId): void {
     this.damperLight.intensity = 0;
-    this.podRoot.add(this.leftCable.mesh, this.rightCable.mesh);
+    this.podRoot.add(this.leftCable.group, this.rightCable.group);
     for (let i = 0; i < this.plasmaLines.length; i++) {
       const arc = this.plasmaLines[i];
       arc.line.visible = true;

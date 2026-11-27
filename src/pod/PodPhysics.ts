@@ -22,12 +22,17 @@ export class PodPhysics {
   private modification: PodModificationId = 'none';
   private rollVel = 0;
   private pitchVel = 0;
+  private cockpitLatVel = 0;
   private cockpitYawVel = 0;
   private cockpitRollVel = 0;
   private cockpitVertVel = 0;
+  private cockpitPitchVel = 0;
+  private cockpitLongVel = 0;
   private prevOmegaYaw = 0;
   private prevVelY = 0;
   private prevPitch = 0;
+  private prevFwdSpeed = 0;
+  private prevLatSpeed = 0;
 
   // Per-jump sequence tracking
   private flareWindowPeakMinThrust = 0;
@@ -84,6 +89,11 @@ export class PodPhysics {
       cockpitYawOffset: 0,
       cockpitRollOffset: 0,
       cockpitVertOffset: 0,
+      cockpitLatOffset: 0,
+      cockpitPitchOffset: 0,
+      cockpitLongOffset: 0,
+      cockpitLatVel: 0,
+      cockpitVertVel: 0,
       lastLandingEvent: 'none',
       lastLandingDamage: 0,
       lastLandingBoostKmh: 0,
@@ -145,6 +155,11 @@ export class PodPhysics {
     s.cockpitYawOffset = 0;
     s.cockpitRollOffset = 0;
     s.cockpitVertOffset = 0;
+    s.cockpitLatOffset = 0;
+    s.cockpitPitchOffset = 0;
+    s.cockpitLongOffset = 0;
+    s.cockpitLatVel = 0;
+    s.cockpitVertVel = 0;
     s.lastLandingEvent = 'none';
     s.lastLandingDamage = 0;
     s.lastLandingBoostKmh = 0;
@@ -160,12 +175,17 @@ export class PodPhysics {
 
     this.rollVel = 0;
     this.pitchVel = 0;
+    this.cockpitLatVel = 0;
     this.cockpitYawVel = 0;
     this.cockpitRollVel = 0;
     this.cockpitVertVel = 0;
+    this.cockpitPitchVel = 0;
+    this.cockpitLongVel = 0;
     this.prevOmegaYaw = 0;
     this.prevVelY = 0;
     this.prevPitch = pitch;
+    this.prevFwdSpeed = 0;
+    this.prevLatSpeed = 0;
 
     this.flareWindowPeakMinThrust = 0;
     this.peakAirImpactSpeed = 0;
@@ -839,31 +859,182 @@ export class PodPhysics {
     this.pitchVel = (s.pitch - this.prevPitch) / dt;
     this.prevPitch = s.pitch;
 
-    // 8. Articulated Trailing Cockpit Secondary Motion
-    const angAccel = (s.omegaYaw - this.prevOmegaYaw) / dt;
+    // 8. Articulated Tethered Cockpit Pendulum Dynamics (6-DOF dangling sled)
+    const curFwdSpeed = s.vel.x * this.tmpForward.x + s.vel.z * this.tmpForward.z;
+    const curLatSpeed = s.vel.x * this.tmpRight.x + s.vel.z * this.tmpRight.z;
+
+    const angAccel = THREE.MathUtils.clamp(
+      (s.omegaYaw - this.prevOmegaYaw) / dt,
+      -25,
+      25
+    );
     this.prevOmegaYaw = s.omegaYaw;
-    const vertAccel = (s.vel.y - this.prevVelY) / dt;
+
+    const vertAccel = THREE.MathUtils.clamp(
+      (s.vel.y - this.prevVelY) / dt,
+      -95,
+      95
+    );
     this.prevVelY = s.vel.y;
 
-    const targetCockpitYaw = THREE.MathUtils.clamp(
-      -s.omegaYaw * 0.085 - angAccel * 0.008,
-      -0.22,
-      0.22
+    const fwdAccel = THREE.MathUtils.clamp(
+      (curFwdSpeed - this.prevFwdSpeed) / dt,
+      -80,
+      80
     );
-    const targetCockpitRoll = THREE.MathUtils.clamp(-s.roll * 0.14, -0.18, 0.18);
-    const targetCockpitVert = THREE.MathUtils.clamp(-vertAccel * 0.004, -0.18, 0.18);
+    this.prevFwdSpeed = curFwdSpeed;
 
+    const latAccel = THREE.MathUtils.clamp(
+      (curLatSpeed - this.prevLatSpeed) / dt,
+      -80,
+      80
+    );
+    this.prevLatSpeed = curLatSpeed;
+
+    // Effective tether tension scales pendulum restoring stiffness:
+    // slack & loose at idle/coasting/reversing, tighter & snappier under high thrust/speed
+    const avgFwdPower = Math.max(0, (effLeft + effRight) * 0.5);
+    const speedTension = THREE.MathUtils.clamp(Math.abs(curFwdSpeed) / 90, 0, 1);
+    const thrustTension = THREE.MathUtils.clamp(
+      avgFwdPower + s.landingBoost * 0.65 + (s.nitroActive ? 0.55 : 0),
+      0,
+      1.5
+    );
+    const tetherTension = THREE.MathUtils.clamp(
+      0.18 + speedTension * 0.45 + thrustTension * 0.45,
+      0.12,
+      1.35
+    );
+
+    // 8a. Lateral Pendulum Swing (+X = right / outside of a left turn)
+    const centrifugalThrow = curFwdSpeed * s.omegaYaw;
+    const rawLatForce =
+      centrifugalThrow * 0.022 +
+      s.omegaYaw * 0.32 +
+      angAccel * 0.065 -
+      latAccel * 0.014 +
+      curLatSpeed * 0.024 +
+      diff * 0.28;
+    const targetCockpitLat = 1.42 * Math.tanh(rawLatForce / 1.15);
+
+    const wLat = THREE.MathUtils.lerp(3.1, 5.4, Math.min(1, tetherTension));
+    const zLat = s.isGrounded ? 0.34 : 0.26;
+    const latSpringAccel =
+      wLat * wLat * (targetCockpitLat - s.cockpitLatOffset) -
+      2 * zLat * wLat * this.cockpitLatVel;
+    this.cockpitLatVel += latSpringAccel * dt;
+    s.cockpitLatOffset += this.cockpitLatVel * dt;
+    if (Math.abs(s.cockpitLatOffset) > 1.52) {
+      s.cockpitLatOffset = Math.sign(s.cockpitLatOffset) * 1.52;
+      this.cockpitLatVel *= -0.25;
+    }
+
+    // 8b. Trailing Yaw Alignment (nose pulled toward engines, tail whips outward)
+    const tetherAlignYaw = Math.atan2(s.cockpitLatOffset, 5.4);
+    const targetCockpitYaw = THREE.MathUtils.clamp(
+      tetherAlignYaw * 1.15 +
+        this.cockpitLatVel * 0.055 +
+        s.omegaYaw * 0.06 -
+        angAccel * 0.012,
+      -0.44,
+      0.44
+    );
+    const wYaw = 5.4;
+    const zYaw = 0.36;
     this.cockpitYawVel +=
-      (120 * (targetCockpitYaw - s.cockpitYawOffset) - 16 * this.cockpitYawVel) * dt;
+      (wYaw * wYaw * (targetCockpitYaw - s.cockpitYawOffset) -
+        2 * zYaw * wYaw * this.cockpitYawVel) *
+      dt;
     s.cockpitYawOffset += this.cockpitYawVel * dt;
+    s.cockpitYawOffset = THREE.MathUtils.clamp(s.cockpitYawOffset, -0.52, 0.52);
 
+    // 8c. Decoupled Hammock / Pendulum Roll (lags behind engine bank + tilts with lateral swing)
+    const targetCockpitRoll = THREE.MathUtils.clamp(
+      -s.roll * 0.46 -
+        this.rollVel * 0.14 +
+        s.cockpitLatOffset * 0.22 +
+        this.cockpitLatVel * 0.065 -
+        diff * 0.12,
+      -0.62,
+      0.62
+    );
+    const wRoll = 4.3;
+    const zRoll = 0.33;
     this.cockpitRollVel +=
-      (110 * (targetCockpitRoll - s.cockpitRollOffset) - 15 * this.cockpitRollVel) * dt;
+      (wRoll * wRoll * (targetCockpitRoll - s.cockpitRollOffset) -
+        2 * zRoll * wRoll * this.cockpitRollVel) *
+      dt;
     s.cockpitRollOffset += this.cockpitRollVel * dt;
+    s.cockpitRollOffset = THREE.MathUtils.clamp(s.cockpitRollOffset, -0.68, 0.68);
 
+    // 8d. Vertical Dangle, Gravity Sag, Jump Float & Landing Bounce
+    const gravitySag = THREE.MathUtils.lerp(-0.28, 0.08, Math.min(1, tetherTension));
+    const airFloat = !s.isGrounded ? THREE.MathUtils.clamp(-s.vel.y * 0.018, -0.15, 0.38) : 0;
+    const targetCockpitVert = THREE.MathUtils.clamp(
+      gravitySag + airFloat - vertAccel * 0.013 - this.pitchVel * 0.42,
+      -0.78,
+      0.92
+    );
+    const wVert = s.isGrounded ? 5.2 : 3.6;
+    const zVert = s.isGrounded ? 0.34 : 0.28;
     this.cockpitVertVel +=
-      (140 * (targetCockpitVert - s.cockpitVertOffset) - 18 * this.cockpitVertVel) * dt;
+      (wVert * wVert * (targetCockpitVert - s.cockpitVertOffset) -
+        2 * zVert * wVert * this.cockpitVertVel) *
+      dt;
     s.cockpitVertOffset += this.cockpitVertVel * dt;
+
+    const minVertForGround = Math.max(-0.82, -(s.clearance + 0.35));
+    if (s.cockpitVertOffset < minVertForGround) {
+      s.cockpitVertOffset = minVertForGround;
+      if (this.cockpitVertVel < 0) this.cockpitVertVel *= -0.35;
+    } else if (s.cockpitVertOffset > 0.98) {
+      s.cockpitVertOffset = 0.98;
+      if (this.cockpitVertVel > 0) this.cockpitVertVel *= -0.25;
+    }
+
+    // 8e. Nose-Tethered Pitch (tail sags when cabin drops low, lifts when floating, lags engine pitch)
+    const targetCockpitPitch = THREE.MathUtils.clamp(
+      -s.cockpitVertOffset * 0.26 -
+        this.cockpitVertVel * 0.035 -
+        this.pitchVel * 0.28 +
+        fwdAccel * 0.0022,
+      -0.36,
+      0.38
+    );
+    const wPitch = 5.3;
+    const zPitch = 0.36;
+    this.cockpitPitchVel +=
+      (wPitch * wPitch * (targetCockpitPitch - s.cockpitPitchOffset) -
+        2 * zPitch * wPitch * this.cockpitPitchVel) *
+      dt;
+    s.cockpitPitchOffset += this.cockpitPitchVel * dt;
+    s.cockpitPitchOffset = THREE.MathUtils.clamp(s.cockpitPitchOffset, -0.42, 0.44);
+
+    // 8f. Fore/Aft Tether Surge + Geometric Spherical Tether Arc Pull-In
+    const elasticSurgeTarget = THREE.MathUtils.clamp(
+      fwdAccel * 0.0085 +
+        (s.landingBoost * 0.16 + (s.nitroActive ? 0.14 : 0)) -
+        (effLeft < -0.05 || effRight < -0.05 ? 0.24 : 0),
+      -0.46,
+      0.38
+    );
+    const arcPullIn =
+      -(
+        s.cockpitLatOffset * s.cockpitLatOffset +
+        s.cockpitVertOffset * s.cockpitVertOffset
+      ) / 11.4;
+    const targetCockpitLong = elasticSurgeTarget + arcPullIn;
+    const wLong = 5.8;
+    const zLong = 0.42;
+    this.cockpitLongVel +=
+      (wLong * wLong * (targetCockpitLong - s.cockpitLongOffset) -
+        2 * zLong * wLong * this.cockpitLongVel) *
+      dt;
+    s.cockpitLongOffset += this.cockpitLongVel * dt;
+    s.cockpitLongOffset = THREE.MathUtils.clamp(s.cockpitLongOffset, -0.78, 0.48);
+
+    s.cockpitLatVel = this.cockpitLatVel;
+    s.cockpitVertVel = this.cockpitVertVel;
 
     s.speedMs = s.vel.length();
     s.speedKmh = s.speedMs * 3.6;

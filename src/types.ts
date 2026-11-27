@@ -190,6 +190,11 @@ export interface PodTelemetry {
   cockpitYawOffset: number;
   cockpitRollOffset: number;
   cockpitVertOffset: number;
+  cockpitLatOffset: number;
+  cockpitPitchOffset: number;
+  cockpitLongOffset: number;
+  cockpitLatVel: number;
+  cockpitVertVel: number;
   lastLandingEvent: LandingEventKind;
   lastLandingDamage: number;
   lastLandingBoostKmh: number;
