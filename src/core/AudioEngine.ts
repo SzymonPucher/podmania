@@ -13,6 +13,8 @@ export class AudioEngine {
   private rightVoice: TurbineVoice | null = null;
   private damperGain: GainNode | null = null;
   private damperFilter: BiquadFilterNode | null = null;
+  private noiseBuffer: AudioBuffer | null = null;
+  private lastBounceSoundMs = 0;
   private muted = false;
   private initialized = false;
 
@@ -33,6 +35,7 @@ export class AudioEngine {
     this.masterGain.connect(this.ctx.destination);
 
     const noiseBuffer = this.createNoiseBuffer(this.ctx, 2.0);
+    this.noiseBuffer = noiseBuffer;
     this.leftVoice = this.createTurbineVoice(-0.55, noiseBuffer);
     this.rightVoice = this.createTurbineVoice(0.55, noiseBuffer);
 
@@ -192,6 +195,104 @@ export class AudioEngine {
     gain.connect(this.masterGain);
     osc.start(now);
     osc.stop(now + 0.28);
+  }
+
+  public playDisassemblyExplosion(): void {
+    if (!this.initialized || !this.ctx || !this.masterGain) return;
+    const now = this.ctx.currentTime;
+
+    // 1. Deep sub-bass structural detonation thump
+    const subOsc = this.ctx.createOscillator();
+    const subGain = this.ctx.createGain();
+    subOsc.type = 'triangle';
+    subOsc.frequency.setValueAtTime(125, now);
+    subOsc.frequency.exponentialRampToValueAtTime(24, now + 0.72);
+    subGain.gain.setValueAtTime(0.55, now);
+    subGain.gain.exponentialRampToValueAtTime(0.001, now + 0.78);
+    subOsc.connect(subGain);
+    subGain.connect(this.masterGain);
+    subOsc.start(now);
+    subOsc.stop(now + 0.8);
+
+    // 2. Electric plasma-binder snap zap
+    const zapOsc = this.ctx.createOscillator();
+    const zapGain = this.ctx.createGain();
+    zapOsc.type = 'sawtooth';
+    zapOsc.frequency.setValueAtTime(1480, now);
+    zapOsc.frequency.exponentialRampToValueAtTime(110, now + 0.24);
+    zapGain.gain.setValueAtTime(0.28, now);
+    zapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.26);
+    zapOsc.connect(zapGain);
+    zapGain.connect(this.masterGain);
+    zapOsc.start(now);
+    zapOsc.stop(now + 0.28);
+
+    // 3. Wideband explosion blast & tearing metal roar
+    if (this.noiseBuffer) {
+      const blastSrc = this.ctx.createBufferSource();
+      blastSrc.buffer = this.noiseBuffer;
+      blastSrc.loop = true;
+
+      const blastFilter = this.ctx.createBiquadFilter();
+      blastFilter.type = 'lowpass';
+      blastFilter.frequency.setValueAtTime(2400, now);
+      blastFilter.frequency.exponentialRampToValueAtTime(135, now + 1.15);
+      blastFilter.Q.value = 1.4;
+
+      const blastGain = this.ctx.createGain();
+      blastGain.gain.setValueAtTime(0.52, now);
+      blastGain.gain.exponentialRampToValueAtTime(0.001, now + 1.25);
+
+      blastSrc.connect(blastFilter);
+      blastFilter.connect(blastGain);
+      blastGain.connect(this.masterGain);
+      blastSrc.start(now);
+      blastSrc.stop(now + 1.3);
+    }
+  }
+
+  public playDebrisBounce(severity: number, pan = 0): void {
+    if (!this.initialized || !this.ctx || !this.masterGain) return;
+    const perfNow = performance.now();
+    if (perfNow - this.lastBounceSoundMs < 85) return;
+    this.lastBounceSoundMs = perfNow;
+
+    const clampedSev = Math.min(1.2, Math.max(0.08, severity));
+    const now = this.ctx.currentTime;
+    const panner = this.ctx.createStereoPanner();
+    panner.pan.setValueAtTime(Math.max(-1, Math.min(1, pan)), now);
+    panner.connect(this.masterGain);
+
+    // Metallic clang + crunch
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    const basePitch = 160 + Math.random() * 140;
+    osc.frequency.setValueAtTime(basePitch, now);
+    osc.frequency.exponentialRampToValueAtTime(42, now + 0.19);
+    gain.gain.setValueAtTime(Math.min(0.32, 0.08 + clampedSev * 0.22), now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.21);
+    osc.connect(gain);
+    gain.connect(panner);
+    osc.start(now);
+    osc.stop(now + 0.22);
+
+    if (this.noiseBuffer) {
+      const nSrc = this.ctx.createBufferSource();
+      nSrc.buffer = this.noiseBuffer;
+      const nFilt = this.ctx.createBiquadFilter();
+      nFilt.type = 'bandpass';
+      nFilt.frequency.setValueAtTime(750 + Math.random() * 650, now);
+      nFilt.Q.value = 1.8;
+      const nGain = this.ctx.createGain();
+      nGain.gain.setValueAtTime(Math.min(0.24, 0.06 + clampedSev * 0.18), now);
+      nGain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+      nSrc.connect(nFilt);
+      nFilt.connect(nGain);
+      nGain.connect(panner);
+      nSrc.start(now);
+      nSrc.stop(now + 0.16);
+    }
   }
 
   private updateVoice(

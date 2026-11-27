@@ -78,6 +78,8 @@ export class HudController {
 
   private readonly countdownEl = document.getElementById('hud-countdown')!;
   private readonly eventBadgeEl = document.getElementById('hud-event-badge')!;
+  private readonly rudBannerEl = document.getElementById('hud-rud-banner')!;
+  private readonly rudBarEl = document.getElementById('hud-rud-bar')!;
 
   private readonly speedEl = document.getElementById('hud-speed')!;
   private readonly modTankSectionEl = document.getElementById('hud-mod-tank-section')!;
@@ -132,10 +134,19 @@ export class HudController {
     this.hudEl.classList.toggle('hidden', state === 'MENU');
     this.menuEl.classList.toggle('hidden', state !== 'MENU');
     this.pauseEl.classList.toggle('hidden', state !== 'PAUSED');
+    this.rudBannerEl.classList.toggle('hidden', state !== 'WRECKING');
     this.wreckedEl.classList.toggle('hidden', state !== 'WRECKED');
     this.finishEl.classList.toggle('hidden', state !== 'FINISHED');
     if (state !== 'COUNTDOWN') {
       this.countdownEl.classList.add('hidden');
+    }
+    if (state === 'WRECKING' || state === 'WRECKED') {
+      this.clearBadgeTimer();
+      this.eventBadgeEl.dataset.livePrompt = '0';
+      this.eventBadgeEl.classList.add('hidden');
+    }
+    if (state === 'WRECKING') {
+      this.rudBarEl.style.width = '100%';
     }
   }
 
@@ -698,6 +709,39 @@ export class HudController {
     if (this.badgeHideTimeout !== null) {
       window.clearTimeout(this.badgeHideTimeout);
       this.badgeHideTimeout = null;
+    }
+  }
+
+  public updateWreckSequence(
+    remainingSec: number,
+    totalSec: number,
+    raceTimeMs: number,
+    wreckSpeedKmh: number
+  ): void {
+    const pct = Math.max(0, Math.min(100, (remainingSec / Math.max(0.01, totalSec)) * 100));
+    this.rudBarEl.style.width = `${pct.toFixed(1)}%`;
+
+    this.timerEl.textContent = formatTimeMs(raceTimeMs);
+    this.speedEl.textContent = String(Math.max(0, Math.round(wreckSpeedKmh)));
+
+    this.hullPctEl.textContent = '0%';
+    this.hullBarEl.style.width = '0%';
+    this.hullBarEl.style.background = '#f87171';
+    this.hullBarEl.classList.add('hull-low');
+
+    this.leftPctEl.textContent = '0%';
+    this.rightPctEl.textContent = '0%';
+    this.leftBarEl.style.width = '0%';
+    this.rightBarEl.style.width = '0%';
+    this.leftWidgetEl.classList.remove('nitro-active', 'coolant-active');
+    this.rightWidgetEl.classList.remove('nitro-active', 'coolant-active');
+    this.modTankSectionEl.classList.remove('active-pulse');
+
+    for (const el of this.leftKeycaps) {
+      el.classList.remove('active-pos', 'active-rev');
+    }
+    for (const el of this.rightKeycaps) {
+      el.classList.remove('active-pos', 'active-rev');
     }
   }
 }

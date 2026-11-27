@@ -8,7 +8,8 @@ import { AudioEngine } from './core/AudioEngine';
 import { InputManager } from './core/InputManager';
 import { compareMedals, StorageManager } from './core/StorageManager';
 import { getMapById } from './maps/mapRegistry';
-import { FIXED_DT } from './pod/PodConfig';
+import { FIXED_DT, WRECK_ANIM_DURATION_SEC } from './pod/PodConfig';
+import { PodDisassembly } from './pod/PodDisassembly';
 import { PodMeshBuilder } from './pod/PodMeshBuilder';
 import { PodPhysics } from './pod/PodPhysics';
 import { PodVFX } from './pod/PodVFX';
@@ -39,6 +40,7 @@ class PodManiaApp {
   private readonly physics = new PodPhysics();
   private readonly podMesh = new PodMeshBuilder();
   private readonly podVfx = new PodVFX();
+  private readonly disassembly = new PodDisassembly();
   private readonly chaseCam = new ChaseCamera();
 
   private activeMap: MapDefinition = getMapById('map1_dustveil');
@@ -48,12 +50,17 @@ class PodManiaApp {
 
   private raceState: RaceState = 'MENU';
   private countdownSec = 2.4;
+  private wreckTimerSec = 0;
   private lastBeepStep = 3;
   private falseStartTriggered = false;
   private raceTimeMs = 0;
   private accumulator = 0;
   private lastFrameTime = performance.now();
   private elapsedTime = 0;
+
+  private readonly tmpWreckFocusPos = new THREE.Vector3();
+  private readonly tmpWreckFocusVel = new THREE.Vector3();
+  private readonly tmpCamRight = new THREE.Vector3();
 
   constructor() {
     const appEl = document.getElementById('app')!;
@@ -80,6 +87,7 @@ class PodManiaApp {
 
     this.env = new EnvironmentSetup(this.scene, this.renderer);
     this.scene.add(this.podMesh.podRoot);
+    this.scene.add(this.disassembly.group);
     this.scene.add(this.podVfx.group);
 
     // Post-processing with subtle bloom for plasma binder, jets & gates
@@ -178,6 +186,8 @@ class PodManiaApp {
 
   private resetPodToStart(): void {
     if (!this.track || !this.checkpoints) return;
+    this.disassembly.reassemble(this.podMesh, this.selectedMod);
+    this.podVfx.clearAll();
     const start = this.track.startSlice;
     const startYaw = Math.atan2(-start.tangent.x, -start.tangent.z);
     const startPos = new THREE.Vector3(
@@ -186,7 +196,7 @@ class PodManiaApp {
       start.center.z
     );
     this.physics.resetToPose(startPos, startYaw, 0);
-    this.checkpoints.reset(startPos, startYaw, this.physics.state.modTankMaxSec);
+    this.checkpoints.reset(startPos, startYaw, this.physics.state.modTankSec);
     this.chaseCam.snapToPod(this.physics.state);
     this.podMesh.update(this.physics.state, 0.016, 0);
   }
@@ -197,6 +207,8 @@ class PodManiaApp {
     this.resetPodToStart();
     this.raceTimeMs = 0;
     this.countdownSec = 2.4;
+    this.wreckTimerSec = 0;
+    this.accumulator = 0;
     this.lastBeepStep = 3;
     this.falseStartTriggered = false;
     this.raceState = 'COUNTDOWN';
@@ -215,19 +227,28 @@ class PodManiaApp {
   private respawnAtCheckpoint(): void {
     if (
       !this.checkpoints ||
-      (this.raceState !== 'RACING' && this.raceState !== 'WRECKED')
+      (this.raceState !== 'RACING' &&
+        this.raceState !== 'WRECKING' &&
+        this.raceState !== 'WRECKED')
     ) {
       return;
     }
+    this.disassembly.reassemble(this.podMesh, this.selectedMod);
+    this.podVfx.clearAll();
     const snap = this.checkpoints.getSnapshot();
     this.physics.resetToPose(snap.pos, snap.yaw, snap.pitch, snap.modTankSec);
+    this.podMesh.update(this.physics.state, 0.016, this.elapsedTime);
     this.chaseCam.snapToPod(this.physics.state);
+    this.wreckTimerSec = 0;
+    this.accumulator = 0;
     this.raceState = 'RACING';
     this.hud.setState('RACING');
   }
 
   private showMenu(): void {
-    this.input.clearTouch();
+    this.input.clearAll();
+    this.resetPodToStart();
+    this.wreckTimerSec = 0;
     this.raceState = 'MENU';
     this.hud.renderMapMenu(this.storage, this.selectedMod);
     this.hud.setState('MENU');
@@ -243,9 +264,43 @@ class PodManiaApp {
     } else if (this.raceState === 'PAUSED') {
       this.raceState = 'RACING';
       this.hud.setState('RACING');
-    } else if (this.raceState === 'FINISHED' || this.raceState === 'WRECKED') {
+    } else if (
+      this.raceState === 'FINISHED' ||
+      this.raceState === 'WRECKING' ||
+      this.raceState === 'WRECKED'
+    ) {
       this.showMenu();
     }
+  }
+
+  private triggerWreckSequence(): void {
+    const st = this.physics.state;
+    st.hullIntegrity = 0;
+    this.input.clearAll();
+
+    // Sync intact pod mesh to exact wreck pose before detaching parts into world space
+    this.podMesh.update(st, FIXED_DT, this.elapsedTime);
+    this.disassembly.start(
+      st,
+      this.physics.lastWreckInfo,
+      this.podMesh,
+      this.podVfx,
+      this.audio
+    );
+    this.chaseCam.addTrauma(1.0);
+    this.audio.updateEngines(0, 0, 0, 0, false, false);
+
+    this.wreckTimerSec = WRECK_ANIM_DURATION_SEC;
+    this.accumulator = 0;
+    this.raceState = 'WRECKING';
+    this.hud.setState('WRECKING');
+    this.hud.updateTouchControls(this.input.getTouchState(), st);
+    this.hud.updateWreckSequence(
+      this.wreckTimerSec,
+      WRECK_ANIM_DURATION_SEC,
+      this.raceTimeMs,
+      st.speedKmh
+    );
   }
 
   private computeMedalAndScore(finishMs: number): {
@@ -397,9 +452,7 @@ class PodManiaApp {
         }
 
         if (allowDrive && st.hullIntegrity <= 0) {
-          this.input.clearTouch();
-          this.raceState = 'WRECKED';
-          this.hud.setState('WRECKED');
+          this.triggerWreckSequence();
           break;
         }
       }
@@ -452,33 +505,97 @@ class PodManiaApp {
         }
       }
 
+      if (this.raceState === 'COUNTDOWN' || this.raceState === 'RACING') {
+        const st = this.physics.state;
+        this.podMesh.update(st, dt, this.elapsedTime);
+        this.podVfx.update(st, dt);
+        this.chaseCam.update(this.camera, st, dt);
+        const nearFeat = this.track?.findNearestSlice(st.pos.x, st.pos.z, st.pos.y).feature;
+        const inCave = nearFeat === 'cave' || nearFeat === 'stalactite_corridor';
+        this.env.update(st.pos, inCave);
+        this.audio.updateEngines(
+          st.pLeft,
+          st.pRight,
+          st.speedMs,
+          st.landingBoost,
+          st.airborneOverload,
+          true,
+          st.nitroActive,
+          st.coolantActive
+        );
+        this.hud.updateTelemetry(
+          st,
+          inputSnap,
+          this.raceTimeMs,
+          this.checkpoints.getCurrentCpNumber(),
+          this.checkpoints.totalCheckpoints,
+          this.checkpoints.getCurrentLap(),
+          this.checkpoints.totalLaps
+        );
+        this.hud.updateTouchControls(this.input.getTouchState(), st);
+      }
+    } else if (this.raceState === 'WRECKING' && this.track) {
       const st = this.physics.state;
-      this.podMesh.update(st, dt, this.elapsedTime);
-      this.podVfx.update(st, dt);
-      this.chaseCam.update(this.camera, st, dt);
-      const nearFeat = this.track?.findNearestSlice(st.pos.x, st.pos.z, st.pos.y).feature;
+      const wreckClockDt = Math.min(0.2, Math.max(0.0001, rawDt));
+      this.wreckTimerSec -= wreckClockDt;
+      this.accumulator += dt;
+      this.tmpCamRight.set(1, 0, 0).applyQuaternion(this.camera.quaternion);
+
+      while (this.accumulator >= FIXED_DT) {
+        const { majorImpactTrauma } = this.disassembly.step(
+          FIXED_DT,
+          this.elapsedTime,
+          st,
+          this.physics.lastWreckInfo,
+          this.track,
+          this.podMesh,
+          this.podVfx,
+          this.audio,
+          this.camera.position,
+          this.tmpCamRight
+        );
+        if (majorImpactTrauma > 0) {
+          this.chaseCam.addTrauma(majorImpactTrauma);
+        }
+        this.accumulator -= FIXED_DT;
+      }
+
+      this.podVfx.stepParticlesOnly(dt);
+      this.disassembly.getFocusTarget(this.tmpWreckFocusPos, this.tmpWreckFocusVel);
+
+      const wreckElapsed =
+        WRECK_ANIM_DURATION_SEC - Math.max(0, this.wreckTimerSec);
+      this.chaseCam.updateWreckCamera(
+        this.camera,
+        this.tmpWreckFocusPos,
+        this.tmpWreckFocusVel,
+        this.track,
+        wreckElapsed,
+        dt
+      );
+
+      const nearFeat = this.track.findNearestSlice(
+        this.tmpWreckFocusPos.x,
+        this.tmpWreckFocusPos.z,
+        this.tmpWreckFocusPos.y
+      ).feature;
       const inCave = nearFeat === 'cave' || nearFeat === 'stalactite_corridor';
-      this.env.update(st.pos, inCave);
-      this.audio.updateEngines(
-        st.pLeft,
-        st.pRight,
-        st.speedMs,
-        st.landingBoost,
-        st.airborneOverload,
-        this.raceState === 'RACING' || this.raceState === 'COUNTDOWN',
-        st.nitroActive,
-        st.coolantActive
-      );
-      this.hud.updateTelemetry(
-        st,
-        inputSnap,
+      this.env.update(this.tmpWreckFocusPos, inCave);
+
+      this.hud.updateWreckSequence(
+        this.wreckTimerSec,
+        WRECK_ANIM_DURATION_SEC,
         this.raceTimeMs,
-        this.checkpoints.getCurrentCpNumber(),
-        this.checkpoints.totalCheckpoints,
-        this.checkpoints.getCurrentLap(),
-        this.checkpoints.totalLaps
+        this.disassembly.getCockpitSpeedKmh()
       );
-      this.hud.updateTouchControls(this.input.getTouchState(), st);
+
+      if (this.wreckTimerSec <= 0) {
+        this.wreckTimerSec = 0;
+        this.raceState = 'WRECKED';
+        this.hud.setState('WRECKED');
+      }
+    } else if (this.raceState === 'WRECKED') {
+      this.podVfx.stepParticlesOnly(dt);
     } else if (this.raceState === 'MENU') {
       // Gentle scenic idle orbit around the podracer at Start
       const st = this.physics.state;

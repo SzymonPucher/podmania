@@ -8,10 +8,43 @@ interface HeatMaterialEntry {
   baseEmissive: THREE.Color;
 }
 
+export type DisassemblyPartKind =
+  | 'left_engine'
+  | 'right_engine'
+  | 'cockpit'
+  | 'belly_tank'
+  | 'intake_rotor'
+  | 'air_flap'
+  | 'winglet'
+  | 'outrigger'
+  | 'mod_part';
+
+export interface DetachablePartDescriptor {
+  id: string;
+  node: THREE.Object3D;
+  parentKind: 'root' | 'left_engine' | 'right_engine' | 'cockpit';
+  comOffsetLocal: THREE.Vector3;
+  radius: number;
+  mass: number;
+  restitution: number;
+  friction: number;
+  drag: number;
+  flutter: number;
+  kind: DisassemblyPartKind;
+  side: -1 | 0 | 1;
+}
+
 interface EngineVisualRefs {
   root: THREE.Group;
+  bellyGroup: THREE.Group;
+  intakeGroup: THREE.Group;
   fanGroup: THREE.Group;
-  flaps: Array<{ pivot: THREE.Group; axis: THREE.Vector3; sign: number }>;
+  flaps: Array<{
+    hingeOffset: THREE.Group;
+    pivot: THREE.Group;
+    axis: THREE.Vector3;
+    sign: number;
+  }>;
   exhaustCore: THREE.Mesh;
   exhaustOuter: THREE.Mesh;
   reversePuff: THREE.Mesh;
@@ -44,6 +77,10 @@ export class PodMeshBuilder {
   private readonly leftEngine: EngineVisualRefs;
   private readonly rightEngine: EngineVisualRefs;
   private readonly cockpitPilotGroup = new THREE.Group();
+  private cockpitLeftWingGroup!: THREE.Group;
+  private cockpitRightWingGroup!: THREE.Group;
+  private cockpitLeftArmGroup!: THREE.Group;
+  private cockpitRightArmGroup!: THREE.Group;
   private readonly damperLight: THREE.PointLight;
 
   private readonly cockpitLeftArmDummy = new THREE.Object3D();
@@ -523,17 +560,22 @@ export class PodMeshBuilder {
       root.add(new THREE.Mesh(copperMerged, mats.copper));
     }
 
-    // Ventral Maroon Belly Tank
+    // Ventral Maroon Belly Tank (isolated group for physics detachment)
+    const bellyGroup = new THREE.Group();
+    bellyGroup.position.set(0, -0.44, -2.2);
     const bellyGeo = new THREE.SphereGeometry(0.45, 18, 12);
     bellyGeo.scale(0.68, 0.52, 1.85);
-    bellyGeo.translate(0, -0.44, -2.2);
     const bellyMesh = new THREE.Mesh(bellyGeo, mats.maroon);
     bellyMesh.castShadow = true;
-    root.add(bellyMesh);
+    bellyGroup.add(bellyMesh);
+    root.add(bellyGroup);
 
     // 3. Intake Spinning Fan (28 angled blades) & Amber Bullet Nose Cone (z = -3.15 to -3.65)
+    const intakeGroup = new THREE.Group();
+    intakeGroup.position.set(0, 0, -3.11);
+
     const fanGroup = new THREE.Group();
-    fanGroup.position.set(0, 0, -3.1);
+    fanGroup.position.set(0, 0, 0.01);
     const bladeGeos: THREE.BufferGeometry[] = [];
     for (let i = 0; i < 28; i++) {
       const ang = (i / 28) * Math.PI * 2;
@@ -547,7 +589,7 @@ export class PodMeshBuilder {
     if (fanMerged) {
       fanGroup.add(new THREE.Mesh(fanMerged, mats.steel));
     }
-    root.add(fanGroup);
+    intakeGroup.add(fanGroup);
 
     const spinnerPts = [
       new THREE.Vector2(0.001, 0.55),
@@ -557,8 +599,9 @@ export class PodMeshBuilder {
     ];
     const spinnerGeo = new THREE.LatheGeometry(spinnerPts, 24);
     spinnerGeo.rotateX(-Math.PI / 2);
-    spinnerGeo.translate(0, 0, -3.12);
-    root.add(new THREE.Mesh(spinnerGeo, mats.spinner));
+    spinnerGeo.translate(0, 0, -0.01);
+    intakeGroup.add(new THREE.Mesh(spinnerGeo, mats.spinner));
+    root.add(intakeGroup);
 
     // 4. Three Forward Yellow Air-Scoop / Airbrake Flaps (z = -3.05 to -4.80)
     const flapConfigs = [
@@ -609,7 +652,7 @@ export class PodMeshBuilder {
 
       // Pivot axis tangential to circumference so positive rotation flares outward
       const axis = new THREE.Vector3(-Math.sin(cfg.angle), Math.cos(cfg.angle), 0).normalize();
-      flaps.push({ pivot, axis, sign: 1 });
+      flaps.push({ hingeOffset, pivot, axis, sign: 1 });
     }
 
     // 3 small curved silver auxiliary guide vanes around lower cowling rim
@@ -769,6 +812,8 @@ export class PodMeshBuilder {
 
     return {
       root,
+      bellyGroup,
+      intakeGroup,
       fanGroup,
       flaps,
       exhaustCore,
@@ -802,19 +847,26 @@ export class PodMeshBuilder {
     this.cockpitGroup.add(hullMesh);
 
     // Flared side winglets + yellow accents
-    for (const s of [-1, 1]) {
+    for (const s of [-1, 1] as const) {
+      const wingGroup = new THREE.Group();
+      wingGroup.position.set(s * 0.75, 0.16, 0.07);
+
       const wingGeo = new THREE.BoxGeometry(0.46, 0.07, 1.15);
       wingGeo.rotateZ(s * 0.42);
       wingGeo.rotateY(s * -0.18);
-      wingGeo.translate(s * 0.72, 0.14, 0.05);
+      wingGeo.translate(s * -0.03, -0.02, -0.02);
       const wing = new THREE.Mesh(wingGeo, mats.cockpitSilver);
       wing.castShadow = true;
-      this.cockpitGroup.add(wing);
+      wingGroup.add(wing);
 
       const accentGeo = new THREE.BoxGeometry(0.16, 0.08, 0.55);
       accentGeo.rotateZ(s * 0.42);
-      accentGeo.translate(s * 0.84, 0.20, 0.12);
-      this.cockpitGroup.add(new THREE.Mesh(accentGeo, mats.yellow));
+      accentGeo.translate(s * 0.09, 0.04, 0.05);
+      wingGroup.add(new THREE.Mesh(accentGeo, mats.yellow));
+
+      this.cockpitGroup.add(wingGroup);
+      if (s < 0) this.cockpitLeftWingGroup = wingGroup;
+      else this.cockpitRightWingGroup = wingGroup;
 
       // Two stern micro-antennas
       const antGeo = new THREE.CylinderGeometry(0.01, 0.015, 0.52, 6);
@@ -823,10 +875,14 @@ export class PodMeshBuilder {
       this.cockpitGroup.add(new THREE.Mesh(antGeo, mats.steel));
 
       // Outrigger spreader arms for tethers
+      const armGroup = new THREE.Group();
+      armGroup.position.set(s * 0.45, 0.02, -0.95);
       const armGeo = new THREE.CylinderGeometry(0.04, 0.05, 0.45, 8);
       armGeo.rotateZ(Math.PI / 2);
-      armGeo.translate(s * 0.45, 0.02, -0.95);
-      this.cockpitGroup.add(new THREE.Mesh(armGeo, mats.gunmetal));
+      armGroup.add(new THREE.Mesh(armGeo, mats.gunmetal));
+      this.cockpitGroup.add(armGroup);
+      if (s < 0) this.cockpitLeftArmGroup = armGroup;
+      else this.cockpitRightArmGroup = armGroup;
     }
 
     // Cobalt-blue nose chevron
@@ -922,5 +978,385 @@ export class PodMeshBuilder {
 
     cable.geometry.attributes.position.needsUpdate = true;
     cable.geometry.computeVertexNormals();
+  }
+
+  public getDetachableParts(): DetachablePartDescriptor[] {
+    const parts: DetachablePartDescriptor[] = [
+      {
+        id: 'left_engine_core',
+        node: this.leftEngine.root,
+        parentKind: 'root',
+        comOffsetLocal: new THREE.Vector3(0, 0, -1.55),
+        radius: 0.54,
+        mass: 420,
+        restitution: 0.34,
+        friction: 0.42,
+        drag: 0.14,
+        flutter: 0.05,
+        kind: 'left_engine',
+        side: -1,
+      },
+      {
+        id: 'right_engine_core',
+        node: this.rightEngine.root,
+        parentKind: 'root',
+        comOffsetLocal: new THREE.Vector3(0, 0, -1.55),
+        radius: 0.54,
+        mass: 420,
+        restitution: 0.34,
+        friction: 0.42,
+        drag: 0.14,
+        flutter: 0.05,
+        kind: 'right_engine',
+        side: 1,
+      },
+      {
+        id: 'cockpit_pod',
+        node: this.cockpitGroup,
+        parentKind: 'root',
+        comOffsetLocal: new THREE.Vector3(0, 0.22, 0.1),
+        radius: 0.58,
+        mass: 260,
+        restitution: 0.3,
+        friction: 0.46,
+        drag: 0.16,
+        flutter: 0.08,
+        kind: 'cockpit',
+        side: 0,
+      },
+    ];
+
+    const engineSides: Array<{
+      eng: EngineVisualRefs;
+      side: -1 | 1;
+      parentKind: 'left_engine' | 'right_engine';
+      prefix: string;
+    }> = [
+      { eng: this.leftEngine, side: -1, parentKind: 'left_engine', prefix: 'left' },
+      { eng: this.rightEngine, side: 1, parentKind: 'right_engine', prefix: 'right' },
+    ];
+
+    for (const { eng, side, parentKind, prefix } of engineSides) {
+      parts.push(
+        {
+          id: `${prefix}_belly_tank`,
+          node: eng.bellyGroup,
+          parentKind,
+          comOffsetLocal: new THREE.Vector3(0, 0, 0),
+          radius: 0.32,
+          mass: 65,
+          restitution: 0.42,
+          friction: 0.36,
+          drag: 0.26,
+          flutter: 0.22,
+          kind: 'belly_tank',
+          side,
+        },
+        {
+          id: `${prefix}_intake_rotor`,
+          node: eng.intakeGroup,
+          parentKind,
+          comOffsetLocal: new THREE.Vector3(0, 0, -0.08),
+          radius: 0.4,
+          mass: 52,
+          restitution: 0.46,
+          friction: 0.3,
+          drag: 0.24,
+          flutter: 0.18,
+          kind: 'intake_rotor',
+          side,
+        }
+      );
+
+      eng.flaps.forEach((flap, idx) => {
+        parts.push({
+          id: `${prefix}_flap_${idx}`,
+          node: flap.hingeOffset,
+          parentKind,
+          comOffsetLocal: new THREE.Vector3(0, 0, -0.88),
+          radius: 0.26,
+          mass: 22,
+          restitution: 0.48,
+          friction: 0.34,
+          drag: 0.48,
+          flutter: 0.85,
+          kind: 'air_flap',
+          side,
+        });
+      });
+
+      if (eng.modNitroGroup.visible) {
+        parts.push({
+          id: `${prefix}_mod_nitro`,
+          node: eng.modNitroGroup,
+          parentKind,
+          comOffsetLocal: new THREE.Vector3(side * 0.34, 0.44, -1.5),
+          radius: 0.22,
+          mass: 38,
+          restitution: 0.45,
+          friction: 0.32,
+          drag: 0.28,
+          flutter: 0.3,
+          kind: 'mod_part',
+          side,
+        });
+      }
+      if (eng.modCoolantGroup.visible) {
+        parts.push({
+          id: `${prefix}_mod_coolant`,
+          node: eng.modCoolantGroup,
+          parentKind,
+          comOffsetLocal: new THREE.Vector3(side * 0.36, 0.41, -1.35),
+          radius: 0.22,
+          mass: 38,
+          restitution: 0.44,
+          friction: 0.32,
+          drag: 0.28,
+          flutter: 0.3,
+          kind: 'mod_part',
+          side,
+        });
+      }
+      if (eng.modFlyingGroup.visible) {
+        parts.push({
+          id: `${prefix}_mod_flying`,
+          node: eng.modFlyingGroup,
+          parentKind,
+          comOffsetLocal: new THREE.Vector3(side * 0.85, 0.1, -1.38),
+          radius: 0.28,
+          mass: 28,
+          restitution: 0.42,
+          friction: 0.36,
+          drag: 0.54,
+          flutter: 0.92,
+          kind: 'mod_part',
+          side,
+        });
+      }
+    }
+
+    parts.push(
+      {
+        id: 'cockpit_left_wing',
+        node: this.cockpitLeftWingGroup,
+        parentKind: 'cockpit',
+        comOffsetLocal: new THREE.Vector3(0, 0, 0),
+        radius: 0.22,
+        mass: 18,
+        restitution: 0.44,
+        friction: 0.36,
+        drag: 0.5,
+        flutter: 0.78,
+        kind: 'winglet',
+        side: -1,
+      },
+      {
+        id: 'cockpit_right_wing',
+        node: this.cockpitRightWingGroup,
+        parentKind: 'cockpit',
+        comOffsetLocal: new THREE.Vector3(0, 0, 0),
+        radius: 0.22,
+        mass: 18,
+        restitution: 0.44,
+        friction: 0.36,
+        drag: 0.5,
+        flutter: 0.78,
+        kind: 'winglet',
+        side: 1,
+      },
+      {
+        id: 'cockpit_left_arm',
+        node: this.cockpitLeftArmGroup,
+        parentKind: 'cockpit',
+        comOffsetLocal: new THREE.Vector3(0, 0, 0),
+        radius: 0.16,
+        mass: 14,
+        restitution: 0.4,
+        friction: 0.4,
+        drag: 0.35,
+        flutter: 0.35,
+        kind: 'outrigger',
+        side: -1,
+      },
+      {
+        id: 'cockpit_right_arm',
+        node: this.cockpitRightArmGroup,
+        parentKind: 'cockpit',
+        comOffsetLocal: new THREE.Vector3(0, 0, 0),
+        radius: 0.16,
+        mass: 14,
+        restitution: 0.4,
+        friction: 0.4,
+        drag: 0.35,
+        flutter: 0.35,
+        kind: 'outrigger',
+        side: 1,
+      }
+    );
+
+    return parts;
+  }
+
+  public detachCablesAndPlasmaToGroup(targetGroup: THREE.Group): void {
+    this.damperLight.intensity = 0;
+    this.leftCable.mesh.position.set(0, 0, 0);
+    this.leftCable.mesh.rotation.set(0, 0, 0);
+    this.leftCable.mesh.scale.set(1, 1, 1);
+    this.rightCable.mesh.position.set(0, 0, 0);
+    this.rightCable.mesh.rotation.set(0, 0, 0);
+    this.rightCable.mesh.scale.set(1, 1, 1);
+    targetGroup.add(this.leftCable.mesh, this.rightCable.mesh);
+
+    for (const arc of this.plasmaLines) {
+      arc.line.position.set(0, 0, 0);
+      arc.line.rotation.set(0, 0, 0);
+      arc.line.scale.set(1, 1, 1);
+      targetGroup.add(arc.line);
+    }
+  }
+
+  public updateSeveredWorldCable(
+    side: 'left' | 'right',
+    worldStart: THREE.Vector3,
+    worldEnd: THREE.Vector3,
+    whipMidWorld: THREE.Vector3
+  ): void {
+    const cable = side === 'left' ? this.leftCable : this.rightCable;
+    this.tmpCurve.v0.copy(worldStart);
+    this.tmpCurve.v1.copy(whipMidWorld);
+    this.tmpCurve.v2.copy(worldEnd);
+
+    const pos = cable.positions;
+    let ptr = 0;
+    for (let r = 0; r <= CABLE_RINGS; r++) {
+      const u = r / CABLE_RINGS;
+      const pt = this.tmpCurve.getPoint(u, this.tmpMid);
+      const tan = this.tmpCurve.getTangent(u, this.tmpTan);
+      if (tan.lengthSq() < 1e-6) {
+        tan.set(0, 0, 1);
+      } else {
+        tan.normalize();
+      }
+      this.tmpNorm.crossVectors(tan, this.tmpUp);
+      if (this.tmpNorm.lengthSq() < 1e-5) {
+        this.tmpNorm.set(1, 0, 0);
+      } else {
+        this.tmpNorm.normalize();
+      }
+      this.tmpBinorm.crossVectors(this.tmpNorm, tan).normalize();
+
+      for (let s = 0; s < CABLE_SIDES; s++) {
+        const ang = (s / CABLE_SIDES) * Math.PI * 2;
+        const ca = Math.cos(ang) * CABLE_RADIUS;
+        const sa = Math.sin(ang) * CABLE_RADIUS;
+        pos[ptr++] = pt.x + this.tmpNorm.x * ca + this.tmpBinorm.x * sa;
+        pos[ptr++] = pt.y + this.tmpNorm.y * ca + this.tmpBinorm.y * sa;
+        pos[ptr++] = pt.z + this.tmpNorm.z * ca + this.tmpBinorm.z * sa;
+      }
+    }
+    cable.geometry.attributes.position.needsUpdate = true;
+    cable.geometry.computeVertexNormals();
+  }
+
+  public updateSeveringPlasmaWorld(
+    leftWorld: THREE.Vector3,
+    rightWorld: THREE.Vector3,
+    snapProgress: number
+  ): void {
+    if (snapProgress >= 1) {
+      for (const arc of this.plasmaLines) {
+        arc.line.visible = false;
+      }
+      return;
+    }
+
+    for (let l = 0; l < this.plasmaLines.length; l++) {
+      const arc = this.plasmaLines[l];
+      arc.line.visible = true;
+      const mat = arc.line.material as THREE.LineBasicMaterial;
+      mat.opacity = (l === 2 ? 1.0 : 0.85) * Math.pow(1 - snapProgress, 1.3);
+
+      const pos = arc.positions;
+      const wildScale = arc.jitterScale * (1.8 + snapProgress * 9.5);
+      for (let i = 0; i <= PLASMA_SEGMENTS; i++) {
+        const u = i / PLASMA_SEGMENTS;
+        const env = Math.sin(u * Math.PI);
+        // Whip outward as binder snaps
+        const whipY = env * snapProgress * 1.6 * (l - 1 + (Math.random() - 0.5));
+        const jx = (Math.random() - 0.5) * wildScale * env;
+        const jy = (Math.random() - 0.5) * wildScale * env + whipY;
+        const jz = (Math.random() - 0.5) * wildScale * env;
+        pos[i * 3] = THREE.MathUtils.lerp(leftWorld.x, rightWorld.x, u) + jx;
+        pos[i * 3 + 1] = THREE.MathUtils.lerp(leftWorld.y, rightWorld.y, u) + jy;
+        pos[i * 3 + 2] = THREE.MathUtils.lerp(leftWorld.z, rightWorld.z, u) + jz;
+      }
+      arc.line.geometry.attributes.position.needsUpdate = true;
+    }
+  }
+
+  public updateDetachedEngineVisuals(
+    side: 'left' | 'right',
+    roguePower: number,
+    heat: number,
+    fanSpinRate: number,
+    dt: number,
+    elapsedTime: number
+  ): void {
+    const eng = side === 'left' ? this.leftEngine : this.rightEngine;
+    eng.reversePuff.visible = false;
+    eng.fanGroup.rotation.z += dt * fanSpinRate;
+
+    const heatFrac = THREE.MathUtils.clamp(heat / 100, 0, 1);
+    for (let i = 0; i < eng.heatMaterials.length; i++) {
+      const entry = eng.heatMaterials[i];
+      entry.mat.color.copy(entry.baseColor).lerp(this.heatColor, heatFrac * 0.78);
+      entry.mat.emissive.copy(entry.baseEmissive).lerp(this.heatEmissiveColor, heatFrac * 0.9);
+      entry.mat.emissiveIntensity = 1.0 + heatFrac * 2.0;
+    }
+
+    if (roguePower > 0.02) {
+      eng.exhaustCore.visible = true;
+      eng.exhaustOuter.visible = true;
+      const sputter = 0.35 + Math.random() * 1.1;
+      const flicker = (0.85 + Math.sin(elapsedTime * 52) * 0.15) * sputter;
+      const lenScale = (0.3 + roguePower * 1.5) * flicker;
+      const radScale = 0.6 + roguePower * 0.5;
+      eng.exhaustCore.scale.set(radScale, lenScale * 0.85, radScale);
+      eng.exhaustOuter.scale.set(radScale * 1.2, lenScale, radScale * 1.2);
+      const outerMat = eng.exhaustOuter.material as THREE.MeshBasicMaterial;
+      outerMat.color.copy(Math.random() < 0.4 ? this.overloadOuterColor : this.normalOuterColor);
+    } else {
+      eng.exhaustCore.visible = false;
+      eng.exhaustOuter.visible = false;
+    }
+  }
+
+  public getEngineWorldEmitter(side: 'left' | 'right', out: THREE.Vector3): THREE.Vector3 {
+    const eng = side === 'left' ? this.leftEngine : this.rightEngine;
+    eng.root.updateMatrixWorld(true);
+    return eng.emitterWorldDummy.getWorldPosition(out);
+  }
+
+  public getCockpitWorldArm(side: 'left' | 'right', out: THREE.Vector3): THREE.Vector3 {
+    this.cockpitGroup.updateMatrixWorld(true);
+    const dummy = side === 'left' ? this.cockpitLeftArmDummy : this.cockpitRightArmDummy;
+    return dummy.getWorldPosition(out);
+  }
+
+  public restoreAfterDisassembly(mod: PodModificationId): void {
+    this.damperLight.intensity = 0;
+    this.podRoot.add(this.leftCable.mesh, this.rightCable.mesh);
+    for (let i = 0; i < this.plasmaLines.length; i++) {
+      const arc = this.plasmaLines[i];
+      arc.line.visible = true;
+      (arc.line.material as THREE.LineBasicMaterial).opacity = i === 2 ? 0.95 : 0.72;
+      this.podRoot.add(arc.line);
+    }
+    for (const eng of [this.leftEngine, this.rightEngine]) {
+      eng.exhaustCore.visible = false;
+      eng.exhaustOuter.visible = false;
+      eng.reversePuff.visible = false;
+    }
+    this.setModification(mod);
   }
 }

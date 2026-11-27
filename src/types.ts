@@ -23,6 +23,7 @@ export type RaceState =
   | 'MENU'
   | 'COUNTDOWN'
   | 'RACING'
+  | 'WRECKING'
   | 'WRECKED'
   | 'FINISHED'
   | 'PAUSED';
@@ -205,4 +206,28 @@ export interface GroundSample {
   groundY: number;
   normal: THREE.Vector3;
   found: boolean;
+}
+
+export type WreckCause =
+  | 'ground_impact'
+  | 'wall_impact'
+  | 'cliff_impact'
+  | 'overheat'
+  | 'air_overload'
+  | 'nitro_burn'
+  | 'hazard_pit'
+  | 'abyss_fall';
+
+export interface WreckImpactInfo {
+  cause: WreckCause;
+  preImpactVel: THREE.Vector3;
+  impactNormal: THREE.Vector3;
+  impactSpeed: number;
+  omegaYaw: number;
+  pitchVel: number;
+  rollVel: number;
+  overheatedLeft: boolean;
+  overheatedRight: boolean;
+  pLeftAtWreck: number;
+  pRightAtWreck: number;
 }

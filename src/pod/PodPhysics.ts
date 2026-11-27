@@ -1,5 +1,11 @@
 import * as THREE from 'three';
-import type { InputSnapshot, PodModificationId, PodTelemetry } from '../types';
+import type {
+  InputSnapshot,
+  PodModificationId,
+  PodTelemetry,
+  WreckCause,
+  WreckImpactInfo,
+} from '../types';
 import type { TrackBuilder } from '../world/TrackBuilder';
 import { getModificationById, POD_CONFIG } from './PodConfig';
 
@@ -11,14 +17,17 @@ export interface PhysicsStateSnapshot {
 
 export class PodPhysics {
   public readonly state: PodTelemetry;
+  public readonly lastWreckInfo: WreckImpactInfo;
 
   private modification: PodModificationId = 'none';
   private rollVel = 0;
+  private pitchVel = 0;
   private cockpitYawVel = 0;
   private cockpitRollVel = 0;
   private cockpitVertVel = 0;
   private prevOmegaYaw = 0;
   private prevVelY = 0;
+  private prevPitch = 0;
 
   // Per-jump sequence tracking
   private flareWindowPeakMinThrust = 0;
@@ -28,8 +37,25 @@ export class PodPhysics {
   private readonly tmpForward = new THREE.Vector3();
   private readonly tmpRight = new THREE.Vector3();
   private readonly tmpNormal = new THREE.Vector3(0, 1, 0);
+  private readonly preStepPos = new THREE.Vector3();
+  private readonly preStepVel = new THREE.Vector3();
+  private readonly preWallVel = new THREE.Vector3();
+  private readonly wreckNormal = new THREE.Vector3(0, 1, 0);
 
   constructor() {
+    this.lastWreckInfo = {
+      cause: 'ground_impact',
+      preImpactVel: new THREE.Vector3(),
+      impactNormal: new THREE.Vector3(0, 1, 0),
+      impactSpeed: 0,
+      omegaYaw: 0,
+      pitchVel: 0,
+      rollVel: 0,
+      overheatedLeft: false,
+      overheatedRight: false,
+      pLeftAtWreck: 0,
+      pRightAtWreck: 0,
+    };
     this.state = {
       pos: new THREE.Vector3(),
       vel: new THREE.Vector3(),
@@ -133,11 +159,13 @@ export class PodPhysics {
     s.coolantActive = false;
 
     this.rollVel = 0;
+    this.pitchVel = 0;
     this.cockpitYawVel = 0;
     this.cockpitRollVel = 0;
     this.cockpitVertVel = 0;
     this.prevOmegaYaw = 0;
     this.prevVelY = 0;
+    this.prevPitch = pitch;
 
     this.flareWindowPeakMinThrust = 0;
     this.peakAirImpactSpeed = 0;
@@ -152,6 +180,15 @@ export class PodPhysics {
     allowCoolant = true
   ): void {
     const s = this.state;
+    const wasAlive = s.hullIntegrity > 0;
+    this.preStepPos.copy(s.pos);
+    this.preStepVel.copy(s.vel);
+    const pLeftBefore = s.pLeft;
+    const pRightBefore = s.pRight;
+    let wreckCause: WreckCause | null = null;
+    let wreckImpactSpeed = 0;
+    this.wreckNormal.set(0, 1, 0);
+
     s.lastLandingEvent = 'none';
     s.lastLandingDamage = 0;
     s.lastLandingBoostKmh = 0;
@@ -188,6 +225,10 @@ export class PodPhysics {
         0,
         s.hullIntegrity - POD_CONFIG.nitroHullDamageRate * usedDt
       );
+      if (s.hullIntegrity <= 0 && wreckCause === null) {
+        wreckCause = 'nitro_burn';
+        wreckImpactSpeed = s.vel.length();
+      }
     } else if (
       isCooledMod &&
       driveEnabled &&
@@ -238,6 +279,10 @@ export class PodPhysics {
       const dmg = overheatCount * POD_CONFIG.overheatHullDamage;
       s.hullIntegrity = Math.max(0, s.hullIntegrity - dmg);
       s.lastOverheatDamage = dmg;
+      if (s.hullIntegrity <= 0 && wreckCause === null) {
+        wreckCause = 'overheat';
+        wreckImpactSpeed = s.vel.length();
+      }
     }
 
     const nitroPowerAdd = s.nitroActive ? POD_CONFIG.nitroPowerAdd * nitroFrac : 0;
@@ -405,6 +450,10 @@ export class PodPhysics {
       s.hullIntegrity = 0;
       s.lastLandingEvent = 'hard_impact';
       s.lastLandingDamage = 100;
+      if (wreckCause === null) {
+        wreckCause = 'abyss_fall';
+        wreckImpactSpeed = s.vel.length();
+      }
     }
 
     // Lateral crosswind gusts
@@ -471,6 +520,11 @@ export class PodPhysics {
           s.hullIntegrity = Math.max(0, s.hullIntegrity - 5.5 * dt);
           s.heatLeft = Math.min(100, s.heatLeft + 18.0 * dt);
           s.heatRight = Math.min(100, s.heatRight + 18.0 * dt);
+          if (s.hullIntegrity <= 0 && wreckCause === null) {
+            wreckCause = 'hazard_pit';
+            wreckImpactSpeed = s.vel.length();
+            this.wreckNormal.copy(this.tmpNormal);
+          }
         }
       }
     }
@@ -552,6 +606,10 @@ export class PodPhysics {
           POD_CONFIG.highAirThrustDamageRate * fwdInputLevel * altSeverity * dt;
         s.hullIntegrity = Math.max(0, s.hullIntegrity - airDmg);
         s.airborneOverload = true;
+        if (s.hullIntegrity <= 0 && wreckCause === null) {
+          wreckCause = 'air_overload';
+          wreckImpactSpeed = s.vel.length();
+        }
       }
 
       // Final pre-touchdown ignition window ("right before hitting the ground")
@@ -612,6 +670,11 @@ export class PodPhysics {
             s.vel.z *= 0.65;
             s.lastLandingEvent = 'hard_impact';
             s.lastLandingDamage = dmg;
+            if (s.hullIntegrity <= 0 && wreckCause === null) {
+              wreckCause = 'ground_impact';
+              wreckImpactSpeed = rawImpactSpeed;
+              this.wreckNormal.copy(this.tmpNormal);
+            }
           }
         } else if (s.coastReady && effectiveIgnitionThrust > 0) {
           // Coasted with both engines off >= 0.5s and activated both right before ground:
@@ -656,6 +719,11 @@ export class PodPhysics {
           s.vel.z *= 0.65;
           s.lastLandingEvent = 'hard_impact';
           s.lastLandingDamage = dmg;
+          if (s.hullIntegrity <= 0 && wreckCause === null) {
+            wreckCause = 'ground_impact';
+            wreckImpactSpeed = rawImpactSpeed;
+            this.wreckNormal.copy(this.tmpNormal);
+          }
         }
 
         this.resetAirSequenceTrackers();
@@ -705,7 +773,19 @@ export class PodPhysics {
 
     if (slammedIntoCliffWall) {
       s.hullIntegrity = 0;
-      s.vel.set(0, 0, 0);
+      s.pos.copy(this.preStepPos);
+      const horizSpd = Math.hypot(this.preStepVel.x, this.preStepVel.z);
+      if (horizSpd > 0.5) {
+        this.wreckNormal
+          .set(-this.preStepVel.x / horizSpd, 0.22, -this.preStepVel.z / horizSpd)
+          .normalize();
+      } else {
+        this.wreckNormal.set(-this.tmpForward.x, 0.22, -this.tmpForward.z).normalize();
+      }
+      wreckCause = 'cliff_impact';
+      wreckImpactSpeed = this.preStepVel.length();
+      s.vel.copy(this.wreckNormal).multiplyScalar(Math.max(8, horizSpd * 0.3));
+      s.vel.y += 4.5;
       s.lastLandingEvent = 'hard_impact';
       s.lastLandingDamage = 100;
     } else if (s.pos.y < postGround.groundY + 0.45) {
@@ -714,6 +794,7 @@ export class PodPhysics {
     }
 
     // Wall & Cave Ceiling Collision
+    this.preWallVel.copy(s.vel);
     const wallHit = track.resolveWallAndCeilingCollision(
       s.pos,
       s.vel,
@@ -725,6 +806,16 @@ export class PodPhysics {
       if (s.lastLandingEvent === 'none') {
         s.lastLandingEvent = 'wall_scrape';
         s.lastLandingDamage = wallDmg;
+      }
+      if (s.hullIntegrity <= 0 && wreckCause === null) {
+        wreckCause = 'wall_impact';
+        wreckImpactSpeed = wallHit.impactSpeed;
+        this.wreckNormal.copy(s.vel).sub(this.preWallVel);
+        if (this.wreckNormal.lengthSq() > 1e-4) {
+          this.wreckNormal.normalize();
+        } else {
+          this.wreckNormal.set(0, 1, 0);
+        }
       }
     }
 
@@ -745,6 +836,8 @@ export class PodPhysics {
         s.pitch - POD_CONFIG.airPitchNoseDropRate * dt
       );
     }
+    this.pitchVel = (s.pitch - this.prevPitch) / dt;
+    this.prevPitch = s.pitch;
 
     // 8. Articulated Trailing Cockpit Secondary Motion
     const angAccel = (s.omegaYaw - this.prevOmegaYaw) / dt;
@@ -774,6 +867,22 @@ export class PodPhysics {
 
     s.speedMs = s.vel.length();
     s.speedKmh = s.speedMs * 3.6;
+
+    if (wasAlive && s.hullIntegrity <= 0) {
+      const info = this.lastWreckInfo;
+      info.cause = wreckCause ?? 'ground_impact';
+      info.preImpactVel.copy(this.preStepVel);
+      info.impactNormal.copy(this.wreckNormal);
+      info.impactSpeed =
+        wreckImpactSpeed > 0 ? wreckImpactSpeed : this.preStepVel.length();
+      info.omegaYaw = s.omegaYaw;
+      info.pitchVel = this.pitchVel;
+      info.rollVel = this.rollVel;
+      info.overheatedLeft = s.overheatedLeft || leftJustOverheated;
+      info.overheatedRight = s.overheatedRight || rightJustOverheated;
+      info.pLeftAtWreck = pLeftBefore;
+      info.pRightAtWreck = pRightBefore;
+    }
   }
 
   private resetAirSequenceTrackers(): void {

@@ -148,3 +148,4 @@ export function getModificationById(id: PodModificationId): PodModificationDef {
 }
 
 export const FIXED_DT = 1 / 120;
+export const WRECK_ANIM_DURATION_SEC = 3.0;

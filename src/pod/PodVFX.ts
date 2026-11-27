@@ -10,11 +10,11 @@ interface Particle {
   scale: number;
 }
 
-const DUST_COUNT = 160;
-const SPARK_COUNT = 80;
-const FLAME_COUNT = 120;
-const SMOKE_COUNT = 120;
-const COOLANT_COUNT = 100;
+const DUST_COUNT = 220;
+const SPARK_COUNT = 180;
+const FLAME_COUNT = 220;
+const SMOKE_COUNT = 260;
+const COOLANT_COUNT = 120;
 
 export class PodVFX {
   public readonly group = new THREE.Group();
@@ -48,6 +48,10 @@ export class PodVFX {
 
   private readonly shockRing: THREE.Mesh;
   private shockAge = -1;
+  private readonly blastRing: THREE.Mesh;
+  private blastAge = -1;
+  private wreckFlameAccum = 0;
+  private wreckSmokeAccum = 0;
   private overloadSparkAccum = 0;
 
   private readonly dummy = new THREE.Object3D();
@@ -203,6 +207,21 @@ export class PodVFX {
     this.shockRing = new THREE.Mesh(ringGeo, ringMat);
     this.shockRing.visible = false;
     this.group.add(this.shockRing);
+
+    // Fiery orange-amber RUD shockwave ring
+    const blastGeo = new THREE.RingGeometry(1.1, 2.5, 36);
+    blastGeo.rotateX(-Math.PI / 2);
+    const blastMat = new THREE.MeshBasicMaterial({
+      color: 0xff6b1a,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      opacity: 0.95,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+    this.blastRing = new THREE.Mesh(blastGeo, blastMat);
+    this.blastRing.visible = false;
+    this.group.add(this.blastRing);
   }
 
   public setBiomeDustColor(biome: MapBiome): void {
@@ -226,21 +245,211 @@ export class PodVFX {
     this.shockAge = 0;
   }
 
-  public triggerSparks(pos: THREE.Vector3, count = 24): void {
+  public triggerSparks(pos: THREE.Vector3, count = 24, baseVel?: THREE.Vector3, speedScale = 1): void {
+    const vx = baseVel ? baseVel.x * 0.45 : 0;
+    const vy = baseVel ? baseVel.y * 0.35 : 0;
+    const vz = baseVel ? baseVel.z * 0.45 : 0;
     for (let i = 0; i < count; i++) {
       const p = this.sparkPool[this.sparkCursor];
       this.sparkCursor = (this.sparkCursor + 1) % SPARK_COUNT;
       p.active = true;
       p.age = 0;
-      p.life = 0.3 + Math.random() * 0.25;
+      p.life = 0.32 + Math.random() * 0.34;
       p.pos.copy(pos);
       p.vel.set(
-        (Math.random() - 0.5) * 24,
-        4 + Math.random() * 14,
-        (Math.random() - 0.5) * 24
+        vx + (Math.random() - 0.5) * 26 * speedScale,
+        vy + (4 + Math.random() * 15) * speedScale,
+        vz + (Math.random() - 0.5) * 26 * speedScale
       );
-      p.scale = 0.8 + Math.random() * 0.8;
+      p.scale = (0.8 + Math.random() * 0.9) * Math.min(1.5, 0.75 + speedScale * 0.3);
     }
+  }
+
+  public triggerExplosionBurst(
+    pos: THREE.Vector3,
+    baseVel: THREE.Vector3,
+    groundY: number,
+    intensity = 1.0,
+    emitCoolant = false
+  ): void {
+    // Fiery blast shockwave
+    this.blastRing.position.set(pos.x, Math.max(groundY + 0.35, pos.y - 0.3), pos.z);
+    this.blastRing.scale.set(1, 1, 1);
+    this.blastRing.visible = true;
+    this.blastAge = 0;
+
+    // Dense fireball core
+    const flameCount = Math.min(90, Math.round(48 * intensity));
+    for (let i = 0; i < flameCount; i++) {
+      const p = this.flamePool[this.flameCursor];
+      this.flameCursor = (this.flameCursor + 1) % FLAME_COUNT;
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(2 * Math.random() - 1);
+      const spd = (4 + Math.random() * 18) * intensity;
+      p.active = true;
+      p.age = 0;
+      p.life = 0.38 + Math.random() * 0.48;
+      p.pos.set(
+        pos.x + (Math.random() - 0.5) * 1.8,
+        pos.y + (Math.random() - 0.5) * 1.2,
+        pos.z + (Math.random() - 0.5) * 1.8
+      );
+      p.vel.set(
+        baseVel.x * 0.55 + Math.sin(phi) * Math.cos(theta) * spd,
+        baseVel.y * 0.45 + Math.abs(Math.cos(phi)) * spd * 0.9 + 3.5,
+        baseVel.z * 0.55 + Math.sin(phi) * Math.sin(theta) * spd
+      );
+      p.scale = (1.35 + Math.random() * 1.6) * Math.min(1.6, 0.8 + intensity * 0.35);
+    }
+
+    // Thick billowing dark smoke cloud
+    const smokeCount = Math.min(90, Math.round(52 * intensity));
+    for (let i = 0; i < smokeCount; i++) {
+      const p = this.smokePool[this.smokeCursor];
+      this.smokeCursor = (this.smokeCursor + 1) % SMOKE_COUNT;
+      const theta = Math.random() * Math.PI * 2;
+      const rSpd = (3 + Math.random() * 13) * intensity;
+      p.active = true;
+      p.age = 0;
+      p.life = 0.85 + Math.random() * 1.15;
+      p.pos.set(
+        pos.x + (Math.random() - 0.5) * 2.2,
+        pos.y + (Math.random() - 0.4) * 1.4,
+        pos.z + (Math.random() - 0.5) * 2.2
+      );
+      p.vel.set(
+        baseVel.x * 0.48 + Math.cos(theta) * rSpd,
+        baseVel.y * 0.35 + 3.5 + Math.random() * 7.5,
+        baseVel.z * 0.48 + Math.sin(theta) * rSpd
+      );
+      p.scale = (1.2 + Math.random() * 1.5) * Math.min(1.6, 0.85 + intensity * 0.3);
+    }
+
+    // High-energy spark shower
+    this.triggerSparks(pos, Math.round(56 * intensity), baseVel, 1.35);
+
+    // Ruptured cryo-coolant tank vapor burst if Cooled Engines equipped
+    if (emitCoolant) {
+      for (let i = 0; i < 48; i++) {
+        const p = this.coolantPool[this.coolantCursor];
+        this.coolantCursor = (this.coolantCursor + 1) % COOLANT_COUNT;
+        p.active = true;
+        p.age = 0;
+        p.life = 0.55 + Math.random() * 0.55;
+        p.pos.copy(pos);
+        p.vel.set(
+          baseVel.x * 0.5 + (Math.random() - 0.5) * 22,
+          baseVel.y * 0.4 + 2 + Math.random() * 12,
+          baseVel.z * 0.5 + (Math.random() - 0.5) * 22
+        );
+        p.scale = 1.1 + Math.random() * 1.2;
+      }
+    }
+  }
+
+  public emitWreckTrail(
+    pos: THREE.Vector3,
+    vel: THREE.Vector3,
+    flameRate: number,
+    smokeRate: number,
+    dt: number
+  ): void {
+    this.wreckFlameAccum += flameRate * dt;
+    while (this.wreckFlameAccum >= 1) {
+      this.wreckFlameAccum -= 1;
+      const p = this.flamePool[this.flameCursor];
+      this.flameCursor = (this.flameCursor + 1) % FLAME_COUNT;
+      p.active = true;
+      p.age = 0;
+      p.life = 0.22 + Math.random() * 0.26;
+      p.pos.set(
+        pos.x + (Math.random() - 0.5) * 0.55,
+        pos.y + (Math.random() - 0.5) * 0.55,
+        pos.z + (Math.random() - 0.5) * 0.55
+      );
+      p.vel.set(
+        vel.x * 0.35 + (Math.random() - 0.5) * 4.5,
+        vel.y * 0.3 + 2.5 + Math.random() * 4.0,
+        vel.z * 0.35 + (Math.random() - 0.5) * 4.5
+      );
+      p.scale = 0.75 + Math.random() * 0.75;
+    }
+
+    this.wreckSmokeAccum += smokeRate * dt;
+    while (this.wreckSmokeAccum >= 1) {
+      this.wreckSmokeAccum -= 1;
+      const p = this.smokePool[this.smokeCursor];
+      this.smokeCursor = (this.smokeCursor + 1) % SMOKE_COUNT;
+      p.active = true;
+      p.age = 0;
+      p.life = 0.75 + Math.random() * 0.85;
+      p.pos.set(
+        pos.x + (Math.random() - 0.5) * 0.65,
+        pos.y + 0.15 + (Math.random() - 0.5) * 0.5,
+        pos.z + (Math.random() - 0.5) * 0.65
+      );
+      p.vel.set(
+        vel.x * 0.28 + (Math.random() - 0.5) * 3.6,
+        vel.y * 0.22 + 3.0 + Math.random() * 3.8,
+        vel.z * 0.28 + (Math.random() - 0.5) * 3.6
+      );
+      p.scale = 0.9 + Math.random() * 0.85;
+    }
+  }
+
+  public triggerGroundBounceVfx(
+    pos: THREE.Vector3,
+    vel: THREE.Vector3,
+    groundY: number,
+    impactSpeed: number
+  ): void {
+    const sparkCnt = Math.min(22, Math.max(4, Math.round(impactSpeed * 0.65)));
+    this.triggerSparks(pos, sparkCnt, vel, Math.min(1.3, 0.55 + impactSpeed * 0.03));
+
+    const dustCnt = Math.min(14, Math.max(3, Math.round(impactSpeed * 0.45)));
+    for (let i = 0; i < dustCnt; i++) {
+      const p = this.dustPool[this.dustCursor];
+      this.dustCursor = (this.dustCursor + 1) % DUST_COUNT;
+      p.active = true;
+      p.age = 0;
+      p.life = 0.5 + Math.random() * 0.4;
+      p.pos.set(
+        pos.x + (Math.random() - 0.5) * 1.1,
+        groundY + 0.28,
+        pos.z + (Math.random() - 0.5) * 1.1
+      );
+      p.vel.set(
+        vel.x * 0.25 + (Math.random() - 0.5) * 7,
+        2.0 + Math.random() * 4.5,
+        vel.z * 0.25 + (Math.random() - 0.5) * 7
+      );
+      p.scale = 0.85 + Math.random() * 0.95;
+    }
+  }
+
+  public clearAll(): void {
+    this.dummy.scale.set(0, 0, 0);
+    this.dummy.updateMatrix();
+    const pools: Array<{ pool: Particle[]; mesh: THREE.InstancedMesh }> = [
+      { pool: this.dustPool, mesh: this.dustMesh },
+      { pool: this.sparkPool, mesh: this.sparkMesh },
+      { pool: this.flamePool, mesh: this.flameMesh },
+      { pool: this.smokePool, mesh: this.smokeMesh },
+      { pool: this.coolantPool, mesh: this.coolantMesh },
+    ];
+    for (const { pool, mesh } of pools) {
+      for (let i = 0; i < pool.length; i++) {
+        pool[i].active = false;
+        mesh.setMatrixAt(i, this.dummy.matrix);
+      }
+      mesh.instanceMatrix.needsUpdate = true;
+    }
+    this.shockAge = -1;
+    this.shockRing.visible = false;
+    this.blastAge = -1;
+    this.blastRing.visible = false;
+    this.wreckFlameAccum = 0;
+    this.wreckSmokeAccum = 0;
   }
 
   public update(t: PodTelemetry, dt: number): void {
@@ -377,6 +586,10 @@ export class PodVFX {
       }
     }
 
+    this.stepParticlesOnly(dt);
+  }
+
+  public stepParticlesOnly(dt: number): void {
     // Update dust pool
     for (let i = 0; i < DUST_COUNT; i++) {
       const p = this.dustPool[i];
@@ -510,6 +723,22 @@ export class PodVFX {
         const s = 1 + u * 5.2;
         this.shockRing.scale.set(s, s, s);
         (this.shockRing.material as THREE.MeshBasicMaterial).opacity = (1 - u) * 0.9;
+      }
+    }
+
+    // Update RUD fiery blast ring
+    if (this.blastAge >= 0) {
+      this.blastAge += dt;
+      const dur = 0.58;
+      if (this.blastAge >= dur) {
+        this.blastAge = -1;
+        this.blastRing.visible = false;
+      } else {
+        const u = this.blastAge / dur;
+        const s = 1 + Math.pow(u, 0.72) * 7.8;
+        this.blastRing.scale.set(s, s, s);
+        (this.blastRing.material as THREE.MeshBasicMaterial).opacity =
+          Math.pow(1 - u, 1.35) * 0.92;
       }
     }
   }
