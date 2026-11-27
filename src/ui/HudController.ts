@@ -77,9 +77,6 @@ export class HudController {
   private readonly eventBadgeEl = document.getElementById('hud-event-badge')!;
 
   private readonly speedEl = document.getElementById('hud-speed')!;
-  private readonly damperLabelEl = document.getElementById('hud-damper-label')!;
-  private readonly damperPctEl = document.getElementById('hud-damper-pct')!;
-  private readonly damperBarEl = document.getElementById('hud-damper-bar')!;
   private readonly modTankSectionEl = document.getElementById('hud-mod-tank-section')!;
   private readonly modTankLabelEl = document.getElementById('hud-mod-tank-label')!;
   private readonly modTankValEl = document.getElementById('hud-mod-tank-val')!;
@@ -267,9 +264,6 @@ export class HudController {
       this.touchMidCueEl.classList.add('hidden');
     }
 
-    this.damperLabelEl.textContent =
-      selectedMod === 'flying' ? 'Flying Landing' : 'Landing Coast';
-
     this.cpProgressEl.textContent = `CP 0 / ${totalCps}`;
     this.splitPillEl.classList.add('hidden');
     this.eventBadgeEl.classList.add('hidden');
@@ -399,31 +393,6 @@ export class HudController {
     } else {
       this.hullBarEl.style.background = '#f87171';
       this.hullBarEl.classList.add('hull-low');
-    }
-
-    // Air Coast (0.5s engines off) & Landing Boost bar (or Flying Engines landing status)
-    if (t.modification === 'flying') {
-      const bothOn = input.targetLeft > 0 && input.targetRight > 0 && !t.overheatedLeft && !t.overheatedRight;
-      if (t.isGrounded) {
-        this.damperPctEl.textContent = 'AIR READY';
-        this.damperBarEl.style.width = '100%';
-        this.damperBarEl.style.background = '#34d399';
-      } else {
-        this.damperPctEl.textContent = bothOn ? 'LAND SAFE' : 'ENGINES ON!';
-        this.damperBarEl.style.width = bothOn ? '100%' : '20%';
-        this.damperBarEl.style.background = bothOn ? '#34d399' : '#f87171';
-      }
-    } else if (t.landingBoost > 0.04) {
-      this.damperPctEl.textContent = 'BOOST!';
-      this.damperBarEl.style.width = `${Math.round(t.landingBoost * 100)}%`;
-      this.damperBarEl.style.background = '#fbbf24';
-    } else {
-      const coastFrac = Math.min(1, t.enginesOffTime / POD_CONFIG.minEnginesOffSec);
-      this.damperPctEl.textContent = t.coastReady
-        ? 'READY'
-        : `${Math.round(coastFrac * 100)}%`;
-      this.damperBarEl.style.width = `${Math.round(coastFrac * 100)}%`;
-      this.damperBarEl.style.background = t.coastReady ? '#34d399' : '#38bdf8';
     }
 
     // Active Modification Tank Bar (Nitro / Coolant)

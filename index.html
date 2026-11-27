@@ -71,9 +71,9 @@
       }
 
       .hud-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-start;
+        display: grid;
+        grid-template-columns: 1fr auto 1fr;
+        align-items: start;
         gap: 16px;
       }
 
@@ -87,7 +87,8 @@
       }
 
       .hud-left-info {
-        min-width: 190px;
+        justify-self: start;
+        min-width: 0;
       }
 
       .map-title-tag {
@@ -131,6 +132,7 @@
       }
 
       .hud-timer-box {
+        justify-self: center;
         text-align: center;
         min-width: 240px;
         padding: 10px 22px;
@@ -198,8 +200,7 @@
       .medal-label-pb { color: var(--accent-cyan); font-weight: 700; }
 
       .hull-section {
-        border-top: 1px solid rgba(255, 255, 255, 0.1);
-        padding-top: 7px;
+        margin-top: 2px;
       }
 
       .bar-header {
@@ -1115,7 +1116,7 @@
           <div class="panel hud-left-info">
             <div class="map-title-tag" id="hud-map-name">Dustveil Gorge</div>
             <div class="mod-badge-tag" id="hud-mod-name">Stock Pod</div>
-            <div class="controls-mini">
+            <div class="controls-mini hidden">
               <div><kbd>Backspace</kbd> Last CP &nbsp; <kbd>R</kbd> Restart</div>
               <div><kbd>Esc</kbd> Menu &nbsp; <kbd>M</kbd> Mute</div>
               <div id="hud-space-hint" class="hidden"><kbd>Space</kbd> <span id="hud-space-action">Nitro</span></div>
@@ -1135,8 +1136,8 @@
             </div>
           </div>
 
-          <div class="panel hud-right-box">
-            <div class="medal-targets">
+          <div class="panel hud-right-box hidden">
+            <div class="medal-targets hidden">
               <span class="medal-label-gold">GOLD</span>
               <span id="hud-target-gold">00:52.000</span>
               <span class="medal-label-silver">SILVER</span>
@@ -1145,15 +1146,6 @@
               <span id="hud-target-bronze">01:15.000</span>
               <span class="medal-label-pb">BEST</span>
               <span id="hud-target-pb">--:--.---</span>
-            </div>
-            <div class="hull-section">
-              <div class="bar-header">
-                <span>Hull Integrity</span>
-                <span id="hud-hull-pct">100%</span>
-              </div>
-              <div class="bar-track">
-                <div class="bar-fill" id="hud-hull-bar" style="width: 100%; background: #38bdf8;"></div>
-              </div>
             </div>
           </div>
         </div>
@@ -1191,12 +1183,14 @@
             <div class="speed-damper-center">
               <div class="speed-value" id="hud-speed">0</div>
               <div class="speed-unit">KM/H</div>
-              <div class="bar-header" style="margin-top: 2px;">
-                <span id="hud-damper-label">Landing Coast</span>
-                <span id="hud-damper-pct">0%</span>
-              </div>
-              <div class="bar-track">
-                <div class="bar-fill" id="hud-damper-bar" style="width: 0%; background: #38bdf8;"></div>
+              <div class="hull-section">
+                <div class="bar-header">
+                  <span>Hull Integrity</span>
+                  <span id="hud-hull-pct">100%</span>
+                </div>
+                <div class="bar-track">
+                  <div class="bar-fill" id="hud-hull-bar" style="width: 100%; background: #38bdf8;"></div>
+                </div>
               </div>
               <div class="mod-tank-section hidden" id="hud-mod-tank-section">
                 <div class="bar-header" style="margin-top: 4px;">
