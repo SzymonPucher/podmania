@@ -17,6 +17,7 @@ const RIGHT_POWER_MAP: Record<string, number> = {
 const BOUND_CODES = new Set<string>([
   ...Object.keys(LEFT_POWER_MAP),
   ...Object.keys(RIGHT_POWER_MAP),
+  'Space',
   'Backspace',
   'KeyR',
   'Escape',
@@ -34,6 +35,7 @@ export interface InputCallbacks {
 export class InputManager {
   private leftStack: string[] = [];
   private rightStack: string[] = [];
+  private spaceHeld = false;
   private callbacks: InputCallbacks;
 
   private readonly handleKeyDownBound: (e: KeyboardEvent) => void;
@@ -63,6 +65,7 @@ export class InputManager {
   public clearAll(): void {
     this.leftStack.length = 0;
     this.rightStack.length = 0;
+    this.spaceHeld = false;
   }
 
   public getSnapshot(): InputSnapshot {
@@ -76,6 +79,7 @@ export class InputManager {
       targetRight: rightActiveCode !== null ? RIGHT_POWER_MAP[rightActiveCode] : 0,
       leftActiveCode,
       rightActiveCode,
+      spaceHeld: this.spaceHeld,
     };
   }
 
@@ -111,6 +115,11 @@ export class InputManager {
       return;
     }
 
+    if (e.code === 'Space') {
+      this.spaceHeld = true;
+      return;
+    }
+
     switch (e.code) {
       case 'Backspace':
         this.callbacks.onRespawn?.();
@@ -135,6 +144,9 @@ export class InputManager {
     if (e.code in RIGHT_POWER_MAP) {
       this.removeFromStack(this.rightStack, e.code);
       return;
+    }
+    if (e.code === 'Space') {
+      this.spaceHeld = false;
     }
   }
 

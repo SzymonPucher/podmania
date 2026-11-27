@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { PodTelemetry } from '../types';
+import type { PodModificationId, PodTelemetry } from '../types';
 
 interface HeatMaterialEntry {
   mat: THREE.MeshStandardMaterial;
@@ -18,6 +18,9 @@ interface EngineVisualRefs {
   emitterWorldDummy: THREE.Object3D;
   pylonDummy: THREE.Object3D;
   heatMaterials: HeatMaterialEntry[];
+  modNitroGroup: THREE.Group;
+  modCoolantGroup: THREE.Group;
+  modFlyingGroup: THREE.Group;
 }
 
 interface CableBuffer {
@@ -69,6 +72,7 @@ export class PodMeshBuilder {
   private flapFlareRight = 0;
   private readonly normalOuterColor = new THREE.Color(0xff7711);
   private readonly boostOuterColor = new THREE.Color(0x38bdf8);
+  private readonly nitroOuterColor = new THREE.Color(0xf43f5e);
   private readonly overloadOuterColor = new THREE.Color(0xef4444);
   private readonly heatColor = new THREE.Color(0xff2a14);
   private readonly heatEmissiveColor = new THREE.Color(0xff1e00);
@@ -123,6 +127,14 @@ export class PodMeshBuilder {
     this.podRoot.add(this.leftCable.mesh, this.rightCable.mesh);
   }
 
+  public setModification(mod: PodModificationId): void {
+    for (const eng of [this.leftEngine, this.rightEngine]) {
+      eng.modNitroGroup.visible = mod === 'nitro';
+      eng.modCoolantGroup.visible = mod === 'cooled';
+      eng.modFlyingGroup.visible = mod === 'flying';
+    }
+  }
+
   public update(t: PodTelemetry, dt: number, elapsedTime: number): void {
     this.podRoot.position.copy(t.pos);
     this.podRoot.rotation.set(t.pitch, t.yaw, t.roll, 'YXZ');
@@ -130,7 +142,12 @@ export class PodMeshBuilder {
     // Subtle engine vibration & trailing cockpit
     const overloadVib = t.airborneOverload ? 0.055 : 0;
     const overheatVib = t.overheatedLeft || t.overheatedRight ? 0.032 : 0;
-    const vib = (Math.abs(t.pLeft) + Math.abs(t.pRight)) * 0.008 + overloadVib + overheatVib;
+    const nitroVib = t.nitroActive ? 0.028 : 0;
+    const vib =
+      (Math.abs(t.pLeft) + Math.abs(t.pRight)) * 0.008 +
+      overloadVib +
+      overheatVib +
+      nitroVib;
     this.enginesGroup.position.set(
       (Math.random() - 0.5) * vib,
       (Math.random() - 0.5) * vib,
@@ -171,6 +188,7 @@ export class PodMeshBuilder {
       t.airborneOverload,
       t.heatLeft,
       t.overheatedLeft,
+      t.nitroActive && !t.overheatedLeft,
       dt,
       elapsedTime
     );
@@ -182,12 +200,24 @@ export class PodMeshBuilder {
       t.airborneOverload,
       t.heatRight,
       t.overheatedRight,
+      t.nitroActive && !t.overheatedRight,
       dt,
       elapsedTime
     );
 
-    // Glow under pod during landing boost overdrive
-    this.damperLight.intensity = t.landingBoost > 0.02 ? t.landingBoost * 22 : 0;
+    // Glow under pod during landing boost, nitro burn, or cryo-coolant flush
+    if (t.nitroActive) {
+      this.damperLight.color.setHex(0xf97316);
+      this.damperLight.intensity = 20;
+    } else if (t.coolantActive) {
+      this.damperLight.color.setHex(0x67e8f9);
+      this.damperLight.intensity = 15;
+    } else if (t.landingBoost > 0.02) {
+      this.damperLight.color.setHex(0x38bdf8);
+      this.damperLight.intensity = t.landingBoost * 22;
+    } else {
+      this.damperLight.intensity = 0;
+    }
 
     // Ensure matrices are current before computing local attachment points
     this.podRoot.updateMatrixWorld(true);
@@ -230,6 +260,7 @@ export class PodMeshBuilder {
     airborneOverload: boolean,
     heat: number,
     overheated: boolean,
+    nitroActive: boolean,
     dt: number,
     elapsedTime: number
   ): void {
@@ -248,7 +279,8 @@ export class PodMeshBuilder {
     }
 
     // Spin 28-blade intake fan
-    eng.fanGroup.rotation.z += dt * (4.0 + Math.abs(power) * 32.0 + landingBoost * 24.0);
+    eng.fanGroup.rotation.z +=
+      dt * (4.0 + Math.abs(power) * 32.0 + landingBoost * 24.0 + (nitroActive ? 22.0 : 0));
 
     // Flare forward yellow airbrake flaps on reverse (-30%)
     const flareRad = flare * THREE.MathUtils.degToRad(26);
@@ -256,23 +288,25 @@ export class PodMeshBuilder {
       f.pivot.setRotationFromAxisAngle(f.axis, f.sign * flareRad);
     }
 
-    // Rear exhaust jet plumes (supercharged during landing vector boost, sputtering on mid-air overload)
+    // Rear exhaust jet plumes (supercharged during landing boost or nitro, sputtering on overload)
     const posP = Math.max(0, power);
-    const effPlume = Math.max(posP, landingBoost * 0.85);
+    const effPlume = Math.max(posP, landingBoost * 0.85, nitroActive ? 1.15 : 0);
     if (effPlume > 0.02) {
       eng.exhaustCore.visible = true;
       eng.exhaustOuter.visible = true;
       const sputter = airborneOverload ? 0.65 + Math.random() * 0.7 : 1.0;
       const flicker = (0.9 + Math.sin(elapsedTime * 45 * Math.PI * 2) * 0.12) * sputter;
-      const boostScale = 1 + landingBoost * 0.75;
+      const boostScale = 1 + landingBoost * 0.75 + (nitroActive ? 0.45 : 0);
       const lenScale = (0.35 + effPlume * 1.45) * flicker * boostScale;
-      const radScale = (0.65 + effPlume * 0.45) * (1 + landingBoost * 0.3);
+      const radScale = (0.65 + Math.min(1.4, effPlume) * 0.45) * (1 + landingBoost * 0.3 + (nitroActive ? 0.22 : 0));
       eng.exhaustCore.scale.set(radScale, lenScale * 0.85, radScale);
       eng.exhaustOuter.scale.set(radScale * 1.15, lenScale, radScale * 1.15);
 
       const outerMat = eng.exhaustOuter.material as THREE.MeshBasicMaterial;
       if (airborneOverload) {
         outerMat.color.copy(this.overloadOuterColor);
+      } else if (nitroActive) {
+        outerMat.color.copy(this.nitroOuterColor);
       } else if (landingBoost > 0.02) {
         outerMat.color
           .copy(this.normalOuterColor)
@@ -663,6 +697,76 @@ export class PodMeshBuilder {
     pylonDummy.position.set(-sideSign * 0.13, 0.50, -1.05);
     root.add(pylonDummy);
 
+    // 8. Optional Pod Modification Attachments (all hidden for stock unmodified pod)
+    const modNitroGroup = new THREE.Group();
+    const nitroTankMat = new THREE.MeshStandardMaterial({
+      color: 0xea580c,
+      metalness: 0.65,
+      roughness: 0.25,
+      emissive: 0x7c2d12,
+      emissiveIntensity: 0.6,
+    });
+    const nitroCanisterGeo = new THREE.CapsuleGeometry(0.14, 0.95, 8, 16);
+    nitroCanisterGeo.rotateX(Math.PI / 2);
+    const nitroCanister = new THREE.Mesh(nitroCanisterGeo, nitroTankMat);
+    nitroCanister.position.set(sideSign * 0.34, 0.44, -1.5);
+    nitroCanister.castShadow = true;
+    modNitroGroup.add(nitroCanister);
+    const nitroStrapGeo = new THREE.TorusGeometry(0.15, 0.022, 6, 16);
+    for (const zBand of [-1.8, -1.2]) {
+      const band = new THREE.Mesh(nitroStrapGeo, mats.gunmetal);
+      band.position.set(sideSign * 0.34, 0.44, zBand);
+      modNitroGroup.add(band);
+    }
+    modNitroGroup.visible = false;
+    root.add(modNitroGroup);
+
+    const modCoolantGroup = new THREE.Group();
+    const coolantTankMat = new THREE.MeshStandardMaterial({
+      color: 0x0ea5e9,
+      metalness: 0.55,
+      roughness: 0.2,
+      emissive: 0x0369a1,
+      emissiveIntensity: 0.85,
+    });
+    const coolantCanisterGeo = new THREE.CapsuleGeometry(0.14, 0.95, 8, 16);
+    coolantCanisterGeo.rotateX(Math.PI / 2);
+    const coolantCanister = new THREE.Mesh(coolantCanisterGeo, coolantTankMat);
+    coolantCanister.position.set(sideSign * 0.34, 0.44, -1.5);
+    coolantCanister.castShadow = true;
+    modCoolantGroup.add(coolantCanister);
+    const cryoPipeGeo = new THREE.CylinderGeometry(0.032, 0.032, 0.7, 8);
+    cryoPipeGeo.rotateX(Math.PI / 2);
+    const cryoPipe = new THREE.Mesh(cryoPipeGeo, mats.steel);
+    cryoPipe.position.set(sideSign * 0.42, 0.32, -0.85);
+    modCoolantGroup.add(cryoPipe);
+    modCoolantGroup.visible = false;
+    root.add(modCoolantGroup);
+
+    const modFlyingGroup = new THREE.Group();
+    const aeroFinMat = new THREE.MeshStandardMaterial({
+      color: 0x10b981,
+      metalness: 0.5,
+      roughness: 0.28,
+      emissive: 0x065f46,
+      emissiveIntensity: 0.7,
+    });
+    const wingGeo = new THREE.BoxGeometry(0.72, 0.045, 1.35);
+    wingGeo.rotateY(sideSign * -0.26);
+    wingGeo.rotateZ(sideSign * 0.14);
+    const wingMesh = new THREE.Mesh(wingGeo, mats.steel);
+    wingMesh.position.set(sideSign * 0.78, 0.08, -1.35);
+    wingMesh.castShadow = true;
+    modFlyingGroup.add(wingMesh);
+    const tipGeo = new THREE.BoxGeometry(0.12, 0.055, 1.05);
+    tipGeo.rotateY(sideSign * -0.26);
+    tipGeo.rotateZ(sideSign * 0.14);
+    const tipMesh = new THREE.Mesh(tipGeo, aeroFinMat);
+    tipMesh.position.set(sideSign * 1.12, 0.13, -1.42);
+    modFlyingGroup.add(tipMesh);
+    modFlyingGroup.visible = false;
+    root.add(modFlyingGroup);
+
     return {
       root,
       fanGroup,
@@ -673,6 +777,9 @@ export class PodMeshBuilder {
       emitterWorldDummy,
       pylonDummy,
       heatMaterials,
+      modNitroGroup,
+      modCoolantGroup,
+      modFlyingGroup,
     };
   }
 

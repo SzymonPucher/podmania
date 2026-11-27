@@ -75,7 +75,9 @@ export class AudioEngine {
     speedMs: number,
     landingBoost: number,
     airborneOverload: boolean,
-    active: boolean
+    active: boolean,
+    nitroActive = false,
+    coolantActive = false
   ): void {
     if (!this.initialized || !this.ctx) return;
     const now = this.ctx.currentTime;
@@ -87,18 +89,32 @@ export class AudioEngine {
       return;
     }
 
-    const speedFactor = Math.min(1.35, speedMs / 80);
+    const speedFactor = Math.min(1.45, speedMs / 80);
+    const effectiveBoost = Math.max(landingBoost, nitroActive ? 0.95 : 0);
     if (this.leftVoice) {
-      this.updateVoice(this.leftVoice, pLeft, speedFactor, landingBoost, airborneOverload, now);
+      this.updateVoice(this.leftVoice, pLeft, speedFactor, effectiveBoost, airborneOverload, now);
     }
     if (this.rightVoice) {
-      this.updateVoice(this.rightVoice, pRight, speedFactor, landingBoost, airborneOverload, now);
+      this.updateVoice(this.rightVoice, pRight, speedFactor, effectiveBoost, airborneOverload, now);
     }
 
-    // Afterburner / overload jet layer (Space alone makes no thruster roar)
+    // Afterburner / nitro / cryo-coolant / overload jet layer
     if (this.damperGain && this.damperFilter) {
-      const jetGain = landingBoost > 0.02 ? landingBoost * 0.34 : airborneOverload ? 0.22 : 0;
-      const jetFreq = airborneOverload ? 920 : 520 + landingBoost * 420;
+      let jetGain = 0;
+      let jetFreq = 520;
+      if (nitroActive) {
+        jetGain = 0.36;
+        jetFreq = 780 + speedFactor * 260;
+      } else if (coolantActive) {
+        jetGain = 0.22;
+        jetFreq = 1850;
+      } else if (landingBoost > 0.02) {
+        jetGain = landingBoost * 0.34;
+        jetFreq = 520 + landingBoost * 420;
+      } else if (airborneOverload) {
+        jetGain = 0.22;
+        jetFreq = 920;
+      }
       this.damperGain.gain.setTargetAtTime(jetGain, now, 0.03);
       this.damperFilter.frequency.setTargetAtTime(jetFreq, now, 0.04);
     }

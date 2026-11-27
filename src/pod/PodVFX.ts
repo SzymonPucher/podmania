@@ -14,6 +14,7 @@ const DUST_COUNT = 160;
 const SPARK_COUNT = 80;
 const FLAME_COUNT = 120;
 const SMOKE_COUNT = 120;
+const COOLANT_COUNT = 100;
 
 export class PodVFX {
   public readonly group = new THREE.Group();
@@ -38,6 +39,12 @@ export class PodVFX {
   private smokeCursor = 0;
   private smokeAccumLeft = 0;
   private smokeAccumRight = 0;
+
+  private readonly coolantMesh: THREE.InstancedMesh;
+  private readonly coolantPool: Particle[] = [];
+  private coolantCursor = 0;
+  private coolantAccum = 0;
+  private nitroSparkAccum = 0;
 
   private readonly shockRing: THREE.Mesh;
   private shockAge = -1;
@@ -155,6 +162,33 @@ export class PodVFX {
       this.smokeMesh.setMatrixAt(i, this.dummy.matrix);
     }
 
+    // Icy cyan cryo-coolant vapor mist
+    const coolantGeo = new THREE.DodecahedronGeometry(0.36, 0);
+    const coolantMat = new THREE.MeshBasicMaterial({
+      color: 0x7dd3fc,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      opacity: 0.52,
+      depthWrite: false,
+    });
+    this.coolantMesh = new THREE.InstancedMesh(coolantGeo, coolantMat, COOLANT_COUNT);
+    this.coolantMesh.frustumCulled = false;
+    this.group.add(this.coolantMesh);
+
+    for (let i = 0; i < COOLANT_COUNT; i++) {
+      this.coolantPool.push({
+        active: false,
+        age: 0,
+        life: 0.5,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        scale: 1,
+      });
+      this.dummy.scale.set(0, 0, 0);
+      this.dummy.updateMatrix();
+      this.coolantMesh.setMatrixAt(i, this.dummy.matrix);
+    }
+
     // Cyan landing shockwave ring
     const ringGeo = new THREE.RingGeometry(1.4, 2.3, 32);
     ringGeo.rotateX(-Math.PI / 2);
@@ -239,6 +273,57 @@ export class PodVFX {
       this.smokeAccumRight,
       dt
     );
+
+    // Cryo-coolant vapor mist from engine vents while coolant is active
+    if (t.coolantActive) {
+      this.coolantAccum += dt * 42;
+      this.tmpRight.set(Math.cos(t.yaw), 0, -Math.sin(t.yaw));
+      const fwdX = -Math.sin(t.yaw);
+      const fwdZ = -Math.cos(t.yaw);
+      while (this.coolantAccum >= 1) {
+        this.coolantAccum -= 1;
+        for (const side of [-1.35, 1.35]) {
+          const p = this.coolantPool[this.coolantCursor];
+          this.coolantCursor = (this.coolantCursor + 1) % COOLANT_COUNT;
+          p.active = true;
+          p.age = 0;
+          p.life = 0.35 + Math.random() * 0.2;
+          p.pos.set(
+            t.pos.x + this.tmpRight.x * side + fwdX * 1.2 + (Math.random() - 0.5) * 0.4,
+            t.pos.y + 0.35 + (Math.random() - 0.5) * 0.25,
+            t.pos.z + this.tmpRight.z * side + fwdZ * 1.2 + (Math.random() - 0.5) * 0.4
+          );
+          p.vel.set(
+            t.vel.x * 0.5 - fwdX * (5 + Math.random() * 4) + (Math.random() - 0.5) * 4,
+            t.vel.y * 0.4 + 2.2 + Math.random() * 2.4,
+            t.vel.z * 0.5 - fwdZ * (5 + Math.random() * 4) + (Math.random() - 0.5) * 4
+          );
+          p.scale = 0.65 + Math.random() * 0.55;
+        }
+      }
+    } else {
+      this.coolantAccum = 0;
+    }
+
+    // Nitro exhaust spark embers while nitro is burning
+    if (t.nitroActive) {
+      this.nitroSparkAccum += dt * 34;
+      this.tmpRight.set(Math.cos(t.yaw), 0, -Math.sin(t.yaw));
+      const fwdX = -Math.sin(t.yaw);
+      const fwdZ = -Math.cos(t.yaw);
+      while (this.nitroSparkAccum >= 1) {
+        this.nitroSparkAccum -= 1;
+        const side = Math.random() < 0.5 ? -1.35 : 1.35;
+        this.tmpSparkPos.set(
+          t.pos.x + this.tmpRight.x * side - fwdX * 0.4,
+          t.pos.y + (Math.random() - 0.5) * 0.3,
+          t.pos.z + this.tmpRight.z * side - fwdZ * 0.4
+        );
+        this.triggerSparks(this.tmpSparkPos, 1);
+      }
+    } else {
+      this.nitroSparkAccum = 0;
+    }
 
     // Mid-air engine overload sparks when player applies thrust high up
     if (t.airborneOverload) {
@@ -389,6 +474,27 @@ export class PodVFX {
       this.smokeMesh.setMatrixAt(i, this.dummy.matrix);
     }
     this.smokeMesh.instanceMatrix.needsUpdate = true;
+
+    // Update coolant vapor pool
+    for (let i = 0; i < COOLANT_COUNT; i++) {
+      const p = this.coolantPool[i];
+      if (!p.active) continue;
+      p.age += dt;
+      if (p.age >= p.life) {
+        p.active = false;
+        this.dummy.scale.set(0, 0, 0);
+      } else {
+        p.pos.addScaledVector(p.vel, dt);
+        const u = p.age / p.life;
+        const s = p.scale * (0.7 + u * 2.0) * (1 - u);
+        this.dummy.position.copy(p.pos);
+        this.dummy.rotation.set(u * 2.5, u * 3.1, 0);
+        this.dummy.scale.set(s, s, s);
+      }
+      this.dummy.updateMatrix();
+      this.coolantMesh.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.coolantMesh.instanceMatrix.needsUpdate = true;
 
     // Update shockwave ring
     if (this.shockAge >= 0) {

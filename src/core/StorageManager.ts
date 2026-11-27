@@ -1,4 +1,12 @@
-import type { MapDefinition, MapRecord, MedalTier, SaveData } from '../types';
+import type {
+  MapDefinition,
+  MapRecord,
+  MedalTier,
+  PodModificationId,
+  SaveData,
+} from '../types';
+
+const VALID_MODS = new Set<PodModificationId>(['none', 'nitro', 'cooled', 'flying']);
 
 const STORAGE_KEY = 'podmania_save_v1';
 
@@ -58,6 +66,16 @@ export class StorageManager {
     this.data.maps[mapId] = updated;
     this.save();
     return { isNewPB, prevBestMedal };
+  }
+
+  public getSelectedModification(): PodModificationId {
+    const mod = this.data.selectedModification;
+    return mod && VALID_MODS.has(mod) ? mod : 'none';
+  }
+
+  public setSelectedModification(mod: PodModificationId): void {
+    this.data.selectedModification = VALID_MODS.has(mod) ? mod : 'none';
+    this.save();
   }
 
   private load(): SaveData {

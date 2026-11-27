@@ -1,10 +1,11 @@
 import type { StorageManager } from '../core/StorageManager';
 import { MAP_REGISTRY } from '../maps/mapRegistry';
-import { POD_CONFIG } from '../pod/PodConfig';
+import { getModificationById, POD_CONFIG, POD_MODIFICATIONS } from '../pod/PodConfig';
 import type {
   InputSnapshot,
   MapDefinition,
   MedalTier,
+  PodModificationId,
   PodTelemetry,
   RaceState,
 } from '../types';
@@ -19,6 +20,7 @@ export function formatTimeMs(ms: number): string {
 
 export interface HudActions {
   onSelectMap: (mapId: string) => void;
+  onSelectModification: (modId: PodModificationId) => void;
   onResume: () => void;
   onRestart: () => void;
   onRespawn: () => void;
@@ -31,9 +33,14 @@ export class HudController {
   private readonly pauseEl = document.getElementById('pause-overlay')!;
   private readonly wreckedEl = document.getElementById('wrecked-overlay')!;
   private readonly finishEl = document.getElementById('finish-overlay')!;
+  private readonly modGridEl = document.getElementById('mod-grid')!;
+  private readonly menuModPillEl = document.getElementById('menu-selected-mod-pill')!;
   private readonly mapGridEl = document.getElementById('map-grid')!;
 
   private readonly mapNameEl = document.getElementById('hud-map-name')!;
+  private readonly hudModNameEl = document.getElementById('hud-mod-name')!;
+  private readonly hudSpaceHintEl = document.getElementById('hud-space-hint')!;
+  private readonly hudSpaceActionEl = document.getElementById('hud-space-action')!;
   private readonly timerEl = document.getElementById('hud-timer')!;
   private readonly cpProgressEl = document.getElementById('hud-cp-progress')!;
   private readonly splitPillEl = document.getElementById('hud-split-pill')!;
@@ -50,8 +57,13 @@ export class HudController {
   private readonly eventBadgeEl = document.getElementById('hud-event-badge')!;
 
   private readonly speedEl = document.getElementById('hud-speed')!;
+  private readonly damperLabelEl = document.getElementById('hud-damper-label')!;
   private readonly damperPctEl = document.getElementById('hud-damper-pct')!;
   private readonly damperBarEl = document.getElementById('hud-damper-bar')!;
+  private readonly modTankSectionEl = document.getElementById('hud-mod-tank-section')!;
+  private readonly modTankLabelEl = document.getElementById('hud-mod-tank-label')!;
+  private readonly modTankValEl = document.getElementById('hud-mod-tank-val')!;
+  private readonly modTankBarEl = document.getElementById('hud-mod-tank-bar')!;
 
   private readonly leftWidgetEl = document.getElementById('hud-left-widget')!;
   private readonly rightWidgetEl = document.getElementById('hud-right-widget')!;
@@ -101,7 +113,50 @@ export class HudController {
     }
   }
 
-  public renderMapMenu(storage: StorageManager): void {
+  public renderModificationMenu(selectedMod: PodModificationId): void {
+    const activeDef = getModificationById(selectedMod);
+    this.menuModPillEl.textContent = `Equipped: ${activeDef.name}`;
+    this.menuModPillEl.style.borderColor = activeDef.accentColor;
+    this.menuModPillEl.style.color = activeDef.accentColor;
+
+    this.modGridEl.innerHTML = '';
+    for (const mod of POD_MODIFICATIONS) {
+      const isSelected = mod.id === selectedMod;
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = `mod-card ${isSelected ? 'selected' : ''}`;
+      card.style.setProperty('--mod-accent', mod.accentColor);
+
+      const bonusesHtml = mod.bonuses
+        .map((b) => `<div class="mod-effect-pro">+ ${b}</div>`)
+        .join('');
+      const drawbacksHtml = mod.drawbacks
+        .map((d) => `<div class="mod-effect-con">&minus; ${d}</div>`)
+        .join('');
+
+      card.innerHTML = `
+        <div class="mod-card-top">
+          <span class="mod-card-tag">${mod.tag}</span>
+          ${isSelected ? '<span class="mod-equipped-pill">Equipped</span>' : ''}
+        </div>
+        <h3>${mod.name}</h3>
+        <p class="mod-card-summary">${mod.summary}</p>
+        <div class="mod-effects">
+          ${bonusesHtml}
+          ${drawbacksHtml}
+        </div>
+      `;
+
+      card.addEventListener('click', () => {
+        this.actions.onSelectModification(mod.id);
+      });
+
+      this.modGridEl.appendChild(card);
+    }
+  }
+
+  public renderMapMenu(storage: StorageManager, selectedMod: PodModificationId): void {
+    this.renderModificationMenu(selectedMod);
     this.mapGridEl.innerHTML = '';
     for (const map of MAP_REGISTRY) {
       const unlocked = storage.isMapUnlocked(map);
@@ -151,8 +206,38 @@ export class HudController {
     }
   }
 
-  public configureMapHud(map: MapDefinition, storage: StorageManager, totalCps: number): void {
+  public configureMapHud(
+    map: MapDefinition,
+    storage: StorageManager,
+    totalCps: number,
+    selectedMod: PodModificationId
+  ): void {
+    const modDef = getModificationById(selectedMod);
     this.mapNameEl.textContent = map.name;
+    this.hudModNameEl.textContent = modDef.shortName;
+    this.hudModNameEl.style.borderColor = modDef.accentColor;
+    this.hudModNameEl.style.color = modDef.accentColor;
+
+    if (selectedMod === 'nitro') {
+      this.hudSpaceHintEl.classList.remove('hidden');
+      this.hudSpaceActionEl.textContent = 'Nitro Boost';
+      this.modTankSectionEl.classList.remove('hidden');
+      this.modTankLabelEl.textContent = 'Nitro [Space]';
+      this.modTankBarEl.style.background = '#f97316';
+    } else if (selectedMod === 'cooled') {
+      this.hudSpaceHintEl.classList.remove('hidden');
+      this.hudSpaceActionEl.textContent = 'Engine Coolant';
+      this.modTankSectionEl.classList.remove('hidden');
+      this.modTankLabelEl.textContent = 'Coolant [Space]';
+      this.modTankBarEl.style.background = '#38bdf8';
+    } else {
+      this.hudSpaceHintEl.classList.add('hidden');
+      this.modTankSectionEl.classList.add('hidden');
+    }
+
+    this.damperLabelEl.textContent =
+      selectedMod === 'flying' ? 'Flying Landing' : 'Landing Coast';
+
     this.cpProgressEl.textContent = `CP 0 / ${totalCps}`;
     this.splitPillEl.classList.add('hidden');
     this.eventBadgeEl.classList.add('hidden');
@@ -284,8 +369,19 @@ export class HudController {
       this.hullBarEl.classList.add('hull-low');
     }
 
-    // Air Coast (1s engines off) & Landing Boost bar
-    if (t.landingBoost > 0.04) {
+    // Air Coast (0.5s engines off) & Landing Boost bar (or Flying Engines landing status)
+    if (t.modification === 'flying') {
+      const bothOn = input.targetLeft > 0 && input.targetRight > 0 && !t.overheatedLeft && !t.overheatedRight;
+      if (t.isGrounded) {
+        this.damperPctEl.textContent = 'AIR READY';
+        this.damperBarEl.style.width = '100%';
+        this.damperBarEl.style.background = '#34d399';
+      } else {
+        this.damperPctEl.textContent = bothOn ? 'LAND SAFE' : 'ENGINES ON!';
+        this.damperBarEl.style.width = bothOn ? '100%' : '20%';
+        this.damperBarEl.style.background = bothOn ? '#34d399' : '#f87171';
+      }
+    } else if (t.landingBoost > 0.04) {
       this.damperPctEl.textContent = 'BOOST!';
       this.damperBarEl.style.width = `${Math.round(t.landingBoost * 100)}%`;
       this.damperBarEl.style.background = '#fbbf24';
@@ -298,6 +394,25 @@ export class HudController {
       this.damperBarEl.style.background = t.coastReady ? '#34d399' : '#38bdf8';
     }
 
+    // Active Modification Tank Bar (Nitro / Coolant)
+    if (t.modTankMaxSec > 0) {
+      const tankFrac = Math.max(0, Math.min(1, t.modTankSec / t.modTankMaxSec));
+      this.modTankValEl.textContent =
+        t.modTankSec > 0.01 ? `${t.modTankSec.toFixed(1)}s` : 'EMPTY';
+      this.modTankBarEl.style.width = `${Math.round(tankFrac * 100)}%`;
+      const isActive = t.nitroActive || t.coolantActive;
+      this.modTankSectionEl.classList.toggle('active-pulse', isActive);
+      if (t.modification === 'nitro') {
+        this.modTankBarEl.style.background = t.nitroActive
+          ? 'linear-gradient(90deg, #f97316, #ec4899)'
+          : '#f97316';
+      } else {
+        this.modTankBarEl.style.background = t.coolantActive
+          ? 'linear-gradient(90deg, #38bdf8, #a5f3fc)'
+          : '#38bdf8';
+      }
+    }
+
     // Contextual airborne sequence coaching & overload warning
     if (this.badgeHideTimeout === null) {
       if (t.airborneOverload) {
@@ -306,7 +421,16 @@ export class HudController {
         this.eventBadgeEl.className = 'event-badge badge-overload-warn';
       } else if (!t.isGrounded && t.airTime > 0.28 && t.vel.y < -6.5) {
         const bothEnginesActive = input.targetLeft > 0 && input.targetRight > 0;
-        if (
+        if (t.modification === 'flying') {
+          if (t.timeToImpact <= 0.45 && !bothEnginesActive) {
+            this.eventBadgeEl.dataset.livePrompt = '1';
+            this.eventBadgeEl.textContent = 'ENGINES ON TO LAND!';
+            this.eventBadgeEl.className = 'event-badge badge-vector-prompt';
+          } else if (this.eventBadgeEl.dataset.livePrompt === '1') {
+            this.eventBadgeEl.dataset.livePrompt = '0';
+            this.eventBadgeEl.classList.add('hidden');
+          }
+        } else if (
           t.coastReady &&
           t.timeToImpact <= POD_CONFIG.thrustFlareWindowSec &&
           !bothEnginesActive
@@ -316,7 +440,7 @@ export class HudController {
           this.eventBadgeEl.className = 'event-badge badge-vector-prompt';
         } else if (!t.coastReady && (input.targetLeft > 0 || input.targetRight > 0)) {
           this.eventBadgeEl.dataset.livePrompt = '1';
-          this.eventBadgeEl.textContent = 'CUT BOTH ENGINES (1s)';
+          this.eventBadgeEl.textContent = 'CUT BOTH ENGINES (0.5s)';
           this.eventBadgeEl.className = 'event-badge badge-damp-prompt';
         } else if (this.eventBadgeEl.dataset.livePrompt === '1') {
           this.eventBadgeEl.dataset.livePrompt = '0';
@@ -333,12 +457,25 @@ export class HudController {
     const rPct = Math.round(t.pRight * 100);
     this.leftPctEl.textContent = `${lPct}%`;
     this.rightPctEl.textContent = `${rPct}%`;
-    this.leftBarEl.style.width = `${Math.abs(lPct)}%`;
-    this.rightBarEl.style.width = `${Math.abs(rPct)}%`;
+    this.leftBarEl.style.width = `${Math.min(100, Math.abs(lPct))}%`;
+    this.rightBarEl.style.width = `${Math.min(100, Math.abs(rPct))}%`;
     this.leftBarEl.style.background =
-      t.pLeft < 0 ? '#f87171' : 'linear-gradient(90deg, #f59e0b, #38bdf8)';
+      t.pLeft < 0
+        ? '#f87171'
+        : t.nitroActive && !t.overheatedLeft
+          ? 'linear-gradient(90deg, #f97316, #ec4899)'
+          : 'linear-gradient(90deg, #f59e0b, #38bdf8)';
     this.rightBarEl.style.background =
-      t.pRight < 0 ? '#f87171' : 'linear-gradient(90deg, #f59e0b, #38bdf8)';
+      t.pRight < 0
+        ? '#f87171'
+        : t.nitroActive && !t.overheatedRight
+          ? 'linear-gradient(90deg, #f97316, #ec4899)'
+          : 'linear-gradient(90deg, #f59e0b, #38bdf8)';
+
+    this.leftWidgetEl.classList.toggle('nitro-active', t.nitroActive && !t.overheatedLeft);
+    this.rightWidgetEl.classList.toggle('nitro-active', t.nitroActive && !t.overheatedRight);
+    this.leftWidgetEl.classList.toggle('coolant-active', t.coolantActive);
+    this.rightWidgetEl.classList.toggle('coolant-active', t.coolantActive);
 
     this.updateEngineHeatHud(
       this.leftWidgetEl,

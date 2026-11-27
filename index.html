@@ -92,6 +92,20 @@
         font-weight: 700;
       }
 
+      .mod-badge-tag {
+        margin-top: 3px;
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: var(--text-main);
+      }
+
       .controls-mini {
         margin-top: 6px;
         font-size: 11px;
@@ -316,6 +330,27 @@
         background: rgba(239, 68, 68, 0.12);
       }
 
+      .engine-widget.nitro-active {
+        border-color: rgba(249, 115, 22, 0.85);
+        background: rgba(249, 115, 22, 0.14);
+        box-shadow: 0 0 16px rgba(249, 115, 22, 0.28);
+      }
+
+      .engine-widget.coolant-active {
+        border-color: rgba(56, 189, 248, 0.85);
+        background: rgba(56, 189, 248, 0.14);
+        box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
+      }
+
+      .mod-tank-section {
+        margin-top: 2px;
+      }
+
+      .mod-tank-section.active-pulse .bar-fill {
+        filter: brightness(1.25);
+        box-shadow: 0 0 10px currentColor;
+      }
+
       .engine-widget.overheated .heat-label-val {
         color: var(--accent-red);
         animation: pulseWarn 0.35s infinite alternate;
@@ -457,14 +492,120 @@
 
       .modal-card {
         width: 100%;
-        max-width: 980px;
+        max-width: 1080px;
         max-height: 92vh;
         overflow-y: auto;
         background: rgba(13, 19, 30, 0.94);
         border: 1px solid rgba(255, 255, 255, 0.16);
         border-radius: 16px;
-        padding: 28px 32px;
+        padding: 26px 30px;
         box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+      }
+
+      .menu-section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin: 0 0 10px;
+      }
+
+      .menu-section-title {
+        font-size: 12px;
+        font-weight: 800;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+      }
+
+      .mod-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 12px;
+        margin-bottom: 22px;
+      }
+
+      .mod-card {
+        background: rgba(255, 255, 255, 0.035);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 12px;
+        padding: 13px 14px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        cursor: pointer;
+        text-align: left;
+        color: inherit;
+        font: inherit;
+        transition: border-color 0.14s ease, background-color 0.14s ease, transform 0.1s ease, box-shadow 0.14s ease;
+      }
+
+      .mod-card:hover {
+        border-color: rgba(255, 255, 255, 0.32);
+        background: rgba(255, 255, 255, 0.06);
+        transform: translateY(-2px);
+      }
+
+      .mod-card.selected {
+        border-color: var(--mod-accent, var(--accent-amber));
+        background: rgba(255, 255, 255, 0.08);
+        box-shadow: 0 0 0 1px var(--mod-accent, var(--accent-amber)), 0 10px 24px rgba(0, 0, 0, 0.35);
+      }
+
+      .mod-card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .mod-card-tag {
+        font-size: 10px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--mod-accent, var(--accent-amber));
+      }
+
+      .mod-equipped-pill {
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        padding: 2px 7px;
+        border-radius: 999px;
+        background: var(--mod-accent, var(--accent-amber));
+        color: #0b1018;
+      }
+
+      .mod-card h3 {
+        margin: 0;
+        font-size: 16px;
+        line-height: 1.2;
+      }
+
+      .mod-card-summary {
+        margin: 0;
+        font-size: 12px;
+        color: var(--text-muted);
+        line-height: 1.4;
+      }
+
+      .mod-effects {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        padding-top: 8px;
+        font-size: 11.5px;
+        line-height: 1.35;
+      }
+
+      .mod-effect-pro {
+        color: #6ee7b7;
+      }
+
+      .mod-effect-con {
+        color: #fca5a5;
       }
 
       .brand-title {
@@ -636,9 +777,11 @@
         <div class="hud-top">
           <div class="panel hud-left-info">
             <div class="map-title-tag" id="hud-map-name">Dustveil Gorge</div>
+            <div class="mod-badge-tag" id="hud-mod-name">Stock Pod</div>
             <div class="controls-mini">
               <div><kbd>Backspace</kbd> Last CP &nbsp; <kbd>R</kbd> Restart</div>
               <div><kbd>Esc</kbd> Menu &nbsp; <kbd>M</kbd> Mute</div>
+              <div id="hud-space-hint" class="hidden"><kbd>Space</kbd> <span id="hud-space-action">Nitro</span></div>
             </div>
           </div>
 
@@ -707,11 +850,20 @@
               <div class="speed-value" id="hud-speed">0</div>
               <div class="speed-unit">KM/H</div>
               <div class="bar-header" style="margin-top: 2px;">
-                <span>Landing Coast</span>
+                <span id="hud-damper-label">Landing Coast</span>
                 <span id="hud-damper-pct">0%</span>
               </div>
               <div class="bar-track">
                 <div class="bar-fill" id="hud-damper-bar" style="width: 0%; background: #38bdf8;"></div>
+              </div>
+              <div class="mod-tank-section hidden" id="hud-mod-tank-section">
+                <div class="bar-header" style="margin-top: 4px;">
+                  <span id="hud-mod-tank-label">Nitro [Space]</span>
+                  <span id="hud-mod-tank-val">5.0s</span>
+                </div>
+                <div class="bar-track">
+                  <div class="bar-fill" id="hud-mod-tank-bar" style="width: 100%; background: #f97316;"></div>
+                </div>
               </div>
             </div>
 
@@ -746,10 +898,18 @@
         <div class="modal-card">
           <h1 class="brand-title">PodMania</h1>
           <p class="brand-sub">Twin-turbine podracer time trials across pure dirt canyons, caves &amp; chasm jumps.</p>
+          <div class="menu-section-header">
+            <span class="menu-section-title">1. Pod Modification</span>
+            <span class="mod-badge-tag" id="menu-selected-mod-pill">Equipped: Unmodified Pod</span>
+          </div>
+          <div class="mod-grid" id="mod-grid"></div>
+          <div class="menu-section-header">
+            <span class="menu-section-title">2. Select Track</span>
+          </div>
           <div class="map-grid" id="map-grid"></div>
           <div class="controls-guide">
-            <div><strong>Left Engine:</strong> <kbd>A</kbd> -30% &nbsp; <kbd>S</kbd> 30% &nbsp; <kbd>D</kbd> 70% &nbsp; <kbd>F</kbd> 100% &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Right Engine:</strong> <kbd>K</kbd> 100% &nbsp; <kbd>L</kbd> 70% &nbsp; <kbd>;</kbd> 30% &nbsp; <kbd>'</kbd> -30%</div>
-            <div><strong>Landing Boost:</strong> Cut both engines for at least 1 second while airborne (thrusting high in the air damages engines!), then activate both engines right before hitting the ground to prevent damage and trigger a huge speed boost! &nbsp; <strong><kbd>Backspace</kbd>:</strong> Last CP &nbsp; <strong><kbd>R</kbd>:</strong> Restart</div>
+            <div><strong>Left Engine:</strong> <kbd>A</kbd> -30% &nbsp; <kbd>S</kbd> 30% &nbsp; <kbd>D</kbd> 70% &nbsp; <kbd>F</kbd> 100% &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Right Engine:</strong> <kbd>K</kbd> 100% &nbsp; <kbd>L</kbd> 70% &nbsp; <kbd>;</kbd> 30% &nbsp; <kbd>'</kbd> -30% &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Mod Tank:</strong> Hold <kbd>Space</kbd> (Nitro / Coolant)</div>
+            <div><strong>Landing Boost:</strong> Cut both engines for at least 0.5s while airborne (thrusting high in the air damages standard engines!), then activate both engines right before hitting the ground to prevent damage and trigger a huge speed boost! &nbsp; <strong><kbd>Backspace</kbd>:</strong> Last CP &nbsp; <strong><kbd>R</kbd>:</strong> Restart</div>
           </div>
         </div>
       </div>
@@ -770,7 +930,7 @@
       <div id="wrecked-overlay" class="overlay-backdrop hidden">
         <div class="modal-card" style="max-width: 460px; text-align: center;">
           <h2 style="margin-top: 0; color: var(--accent-red);">POD WRECKED</h2>
-          <p style="color: var(--text-muted); font-size: 14px;">Hull integrity reached 0%. Keep both engines off for at least 1 second while airborne, then activate both engines right before hitting the ground!</p>
+          <p style="color: var(--text-muted); font-size: 14px;">Hull integrity reached 0%. Keep both engines off for at least 0.5s while airborne (unless using Flying Engines), watch your heat and nitro drain, and activate both engines right before hitting the ground!</p>
           <div class="modal-actions" style="justify-content: center;">
             <button class="btn btn-primary" id="btn-wreck-respawn">Respawn CP (Backspace)</button>
             <button class="btn btn-secondary" id="btn-wreck-restart">Restart Run (R)</button>

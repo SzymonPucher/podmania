@@ -2,6 +2,21 @@ import type * as THREE from 'three';
 
 export type MedalTier = 'none' | 'bronze' | 'silver' | 'gold';
 
+export type PodModificationId = 'none' | 'nitro' | 'cooled' | 'flying';
+
+export interface PodModificationDef {
+  id: PodModificationId;
+  name: string;
+  shortName: string;
+  tag: string;
+  accentColor: string;
+  summary: string;
+  bonuses: string[];
+  drawbacks: string[];
+  usesSpace: boolean;
+  tankSeconds: number;
+}
+
 export type RaceState =
   | 'MENU'
   | 'COUNTDOWN'
@@ -71,6 +86,7 @@ export interface MapRecord {
 
 export interface SaveData {
   maps: Record<string, MapRecord>;
+  selectedModification?: PodModificationId;
 }
 
 export interface InputSnapshot {
@@ -78,6 +94,7 @@ export interface InputSnapshot {
   targetRight: number;
   leftActiveCode: string | null;
   rightActiveCode: string | null;
+  spaceHeld: boolean;
 }
 
 export type LandingEventKind =
@@ -124,6 +141,12 @@ export interface PodTelemetry {
   lastLandingDamage: number;
   lastLandingBoostKmh: number;
   lastOverheatDamage: number;
+  modification: PodModificationId;
+  /** Remaining active modification tank in seconds (5.0s max for nitro/cooled, 0 otherwise) */
+  modTankSec: number;
+  modTankMaxSec: number;
+  nitroActive: boolean;
+  coolantActive: boolean;
 }
 
 export interface GroundSample {

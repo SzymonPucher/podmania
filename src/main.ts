@@ -12,7 +12,12 @@ import { FIXED_DT } from './pod/PodConfig';
 import { PodMeshBuilder } from './pod/PodMeshBuilder';
 import { PodPhysics } from './pod/PodPhysics';
 import { PodVFX } from './pod/PodVFX';
-import type { MapDefinition, MedalTier, RaceState } from './types';
+import type {
+  MapDefinition,
+  MedalTier,
+  PodModificationId,
+  RaceState,
+} from './types';
 import { HudController } from './ui/HudController';
 import { ChaseCamera } from './world/ChaseCamera';
 import { CheckpointSystem } from './world/CheckpointSystem';
@@ -37,6 +42,7 @@ class PodManiaApp {
   private readonly chaseCam = new ChaseCamera();
 
   private activeMap: MapDefinition = getMapById('map1_dustveil');
+  private selectedMod: PodModificationId = 'none';
   private track: TrackBuilder | null = null;
   private checkpoints: CheckpointSystem | null = null;
 
@@ -100,6 +106,7 @@ class PodManiaApp {
 
     this.hud = new HudController({
       onSelectMap: (mapId) => this.loadAndStartMap(mapId),
+      onSelectModification: (modId) => this.selectModification(modId),
       onResume: () => {
         if (this.raceState === 'PAUSED') {
           this.raceState = 'RACING';
@@ -110,6 +117,10 @@ class PodManiaApp {
       onRespawn: () => this.respawnAtCheckpoint(),
       onBackToMenu: () => this.showMenu(),
     });
+
+    this.selectedMod = this.storage.getSelectedModification();
+    this.physics.setModification(this.selectedMod);
+    this.podMesh.setModification(this.selectedMod);
 
     // Load Map 01 in background for menu backdrop
     this.loadMapScene('map1_dustveil');
@@ -140,6 +151,14 @@ class PodManiaApp {
     this.resetPodToStart();
   }
 
+  private selectModification(modId: PodModificationId): void {
+    this.selectedMod = modId;
+    this.storage.setSelectedModification(modId);
+    this.physics.setModification(modId);
+    this.podMesh.setModification(modId);
+    this.hud.renderModificationMenu(modId);
+  }
+
   private loadAndStartMap(mapId: string): void {
     this.audio.unlock();
     if (this.activeMap.id !== mapId || !this.track) {
@@ -158,13 +177,14 @@ class PodManiaApp {
       start.center.z
     );
     this.physics.resetToPose(startPos, startYaw, 0);
-    this.checkpoints.reset(startPos, startYaw);
+    this.checkpoints.reset(startPos, startYaw, this.physics.state.modTankMaxSec);
     this.chaseCam.snapToPod(this.physics.state);
     this.podMesh.update(this.physics.state, 0.016, 0);
   }
 
   private startCountdown(): void {
     if (!this.checkpoints) return;
+    (document.activeElement as HTMLElement | null)?.blur();
     this.resetPodToStart();
     this.raceTimeMs = 0;
     this.countdownSec = 2.4;
@@ -174,7 +194,8 @@ class PodManiaApp {
     this.hud.configureMapHud(
       this.activeMap,
       this.storage,
-      this.checkpoints.totalCheckpoints
+      this.checkpoints.totalCheckpoints,
+      this.selectedMod
     );
     this.hud.setState('COUNTDOWN');
     this.hud.updateCountdown(this.countdownSec);
@@ -189,7 +210,7 @@ class PodManiaApp {
       return;
     }
     const snap = this.checkpoints.getSnapshot();
-    this.physics.resetToPose(snap.pos, snap.yaw, snap.pitch);
+    this.physics.resetToPose(snap.pos, snap.yaw, snap.pitch, snap.modTankSec);
     this.chaseCam.snapToPod(this.physics.state);
     this.raceState = 'RACING';
     this.hud.setState('RACING');
@@ -197,7 +218,7 @@ class PodManiaApp {
 
   private showMenu(): void {
     this.raceState = 'MENU';
-    this.hud.renderMapMenu(this.storage);
+    this.hud.renderMapMenu(this.storage, this.selectedMod);
     this.hud.setState('MENU');
     this.audio.updateEngines(0, 0, 0, 0, false, false);
   }
@@ -273,9 +294,10 @@ class PodManiaApp {
     const inputSnap = this.input.getSnapshot();
 
     if (this.raceState === 'COUNTDOWN') {
+      const nitroJumpStart = this.selectedMod === 'nitro' && inputSnap.spaceHeld;
       if (
         !this.falseStartTriggered &&
-        (inputSnap.targetLeft !== 0 || inputSnap.targetRight !== 0)
+        (inputSnap.targetLeft !== 0 || inputSnap.targetRight !== 0 || nitroJumpStart)
       ) {
         this.falseStartTriggered = true;
         this.raceTimeMs += 5000;
@@ -309,12 +331,20 @@ class PodManiaApp {
       this.accumulator += dt;
 
       while (this.accumulator >= FIXED_DT) {
-        this.physics.step(FIXED_DT, inputSnap, this.track, allowDrive);
+        this.physics.step(
+          FIXED_DT,
+          inputSnap,
+          this.track,
+          allowDrive,
+          this.raceState === 'RACING'
+        );
         this.accumulator -= FIXED_DT;
 
         const st = this.physics.state;
         if (st.airborneOverload) {
           this.chaseCam.addTrauma(FIXED_DT * 1.4);
+        } else if (st.nitroActive) {
+          this.chaseCam.addTrauma(FIXED_DT * 0.45);
         }
 
         if (st.lastLandingEvent === 'vector_boost') {
@@ -364,7 +394,8 @@ class PodManiaApp {
         this.raceTimeMs += dt * 1000;
         const cpRes = this.checkpoints.update(
           this.physics.state.pos,
-          this.raceTimeMs
+          this.raceTimeMs,
+          this.physics.state.modTankSec
         );
         if (cpRes.crossedCp !== null && cpRes.splitTimeMs !== null) {
           const pbSplits = this.storage.getMapRecord(this.activeMap.id)
@@ -397,7 +428,9 @@ class PodManiaApp {
         st.speedMs,
         st.landingBoost,
         st.airborneOverload,
-        this.raceState === 'RACING' || this.raceState === 'COUNTDOWN'
+        this.raceState === 'RACING' || this.raceState === 'COUNTDOWN',
+        st.nitroActive,
+        st.coolantActive
       );
       this.hud.updateTelemetry(
         st,

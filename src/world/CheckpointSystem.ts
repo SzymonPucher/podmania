@@ -12,6 +12,7 @@ export interface CheckpointSnapshot {
   pos: THREE.Vector3;
   yaw: number;
   pitch: number;
+  modTankSec: number;
 }
 
 export class CheckpointSystem {
@@ -33,6 +34,7 @@ export class CheckpointSystem {
       pos: new THREE.Vector3(start.center.x, start.center.y + 1.85, start.center.z),
       yaw: startYaw,
       pitch: 0,
+      modTankSec: 0,
     };
 
     // Start arch
@@ -48,13 +50,14 @@ export class CheckpointSystem {
     this.refreshGateColors();
   }
 
-  public reset(startPos: THREE.Vector3, startYaw: number): void {
+  public reset(startPos: THREE.Vector3, startYaw: number, modTankSec = 0): void {
     this.nextCpIndex = 0;
     this.splitsMs = [];
     this.lastSnapshot = {
       pos: startPos.clone(),
       yaw: startYaw,
       pitch: 0,
+      modTankSec,
     };
     this.prevPodPos.copy(startPos);
     this.refreshGateColors();
@@ -65,6 +68,7 @@ export class CheckpointSystem {
       pos: this.lastSnapshot.pos.clone(),
       yaw: this.lastSnapshot.yaw,
       pitch: this.lastSnapshot.pitch,
+      modTankSec: this.lastSnapshot.modTankSec,
     };
   }
 
@@ -78,7 +82,8 @@ export class CheckpointSystem {
 
   public update(
     podPos: THREE.Vector3,
-    raceTimeMs: number
+    raceTimeMs: number,
+    modTankSec = 0
   ): {
     crossedCp: number | null;
     finished: boolean;
@@ -118,6 +123,7 @@ export class CheckpointSystem {
         pos: new THREE.Vector3(cp.position.x, cp.position.y + 1.9, cp.position.z),
         yaw,
         pitch: 0,
+        modTankSec,
       };
       this.nextCpIndex++;
       this.refreshGateColors();

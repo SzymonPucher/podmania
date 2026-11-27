@@ -1,7 +1,7 @@
 import * as THREE from 'three';
-import type { InputSnapshot, PodTelemetry } from '../types';
+import type { InputSnapshot, PodModificationId, PodTelemetry } from '../types';
 import type { TrackBuilder } from '../world/TrackBuilder';
-import { POD_CONFIG } from './PodConfig';
+import { getModificationById, POD_CONFIG } from './PodConfig';
 
 export interface PhysicsStateSnapshot {
   pos: THREE.Vector3;
@@ -12,6 +12,7 @@ export interface PhysicsStateSnapshot {
 export class PodPhysics {
   public readonly state: PodTelemetry;
 
+  private modification: PodModificationId = 'none';
   private rollVel = 0;
   private cockpitYawVel = 0;
   private cockpitRollVel = 0;
@@ -61,11 +62,36 @@ export class PodPhysics {
       lastLandingDamage: 0,
       lastLandingBoostKmh: 0,
       lastOverheatDamage: 0,
+      modification: 'none',
+      modTankSec: 0,
+      modTankMaxSec: 0,
+      nitroActive: false,
+      coolantActive: false,
     };
   }
 
-  public resetToPose(pos: THREE.Vector3, yaw: number, pitch = 0): void {
+  public setModification(mod: PodModificationId): void {
+    this.modification = mod;
+    const def = getModificationById(mod);
+    this.state.modification = mod;
+    this.state.modTankMaxSec = def.tankSeconds;
+    this.state.modTankSec = def.tankSeconds;
+    this.state.nitroActive = false;
+    this.state.coolantActive = false;
+  }
+
+  public getModification(): PodModificationId {
+    return this.modification;
+  }
+
+  public resetToPose(
+    pos: THREE.Vector3,
+    yaw: number,
+    pitch = 0,
+    tankRemaining?: number
+  ): void {
     const s = this.state;
+    const modDef = getModificationById(this.modification);
     s.pos.copy(pos);
     s.vel.set(0, 0, 0);
     s.yaw = yaw;
@@ -97,6 +123,14 @@ export class PodPhysics {
     s.lastLandingDamage = 0;
     s.lastLandingBoostKmh = 0;
     s.lastOverheatDamage = 0;
+    s.modification = this.modification;
+    s.modTankMaxSec = modDef.tankSeconds;
+    s.modTankSec =
+      tankRemaining !== undefined
+        ? THREE.MathUtils.clamp(tankRemaining, 0, modDef.tankSeconds)
+        : modDef.tankSeconds;
+    s.nitroActive = false;
+    s.coolantActive = false;
 
     this.rollVel = 0;
     this.cockpitYawVel = 0;
@@ -114,26 +148,74 @@ export class PodPhysics {
     dt: number,
     input: InputSnapshot,
     track: TrackBuilder,
-    allowDrive: boolean
+    allowDrive: boolean,
+    allowCoolant = true
   ): void {
     const s = this.state;
     s.lastLandingEvent = 'none';
     s.lastLandingDamage = 0;
     s.lastLandingBoostKmh = 0;
     s.lastOverheatDamage = 0;
-    s.lastOverheatDamage = 0;
     s.airborneOverload = false;
+    s.nitroActive = false;
+    s.coolantActive = false;
 
     const isWrecked = s.hullIntegrity <= 0;
     const driveEnabled = allowDrive && !isWrecked;
     const hullScale = s.hullIntegrity < 30 ? 0.9 + (s.hullIntegrity / 30) * 0.1 : 1.0;
+
+    const isNitroMod = this.modification === 'nitro';
+    const isCooledMod = this.modification === 'cooled';
+    const isFlyingMod = this.modification === 'flying';
+    const weightMult = isNitroMod || isCooledMod ? POD_CONFIG.modWeightScale : 1.0;
+
+    // 0. Active Modification Tanks (Spacebar)
+    let nitroFrac = 0;
+    let coolantFrac = 0;
+    if (
+      isNitroMod &&
+      driveEnabled &&
+      input.spaceHeld &&
+      s.modTankSec > 0 &&
+      (!s.overheatedLeft || !s.overheatedRight)
+    ) {
+      const usedDt = Math.min(dt, s.modTankSec);
+      s.modTankSec = Math.max(0, s.modTankSec - usedDt);
+      nitroFrac = usedDt / dt;
+      s.nitroActive = usedDt > 0;
+      // Nitro damages hull at 5% per second (up to 25% across full 5s tank)
+      s.hullIntegrity = Math.max(
+        0,
+        s.hullIntegrity - POD_CONFIG.nitroHullDamageRate * usedDt
+      );
+    } else if (
+      isCooledMod &&
+      driveEnabled &&
+      allowCoolant &&
+      input.spaceHeld &&
+      s.modTankSec > 0
+    ) {
+      const usedDt = Math.min(dt, s.modTankSec);
+      s.modTankSec = Math.max(0, s.modTankSec - usedDt);
+      coolantFrac = usedDt / dt;
+      s.coolantActive = usedDt > 0;
+    }
+
+    const nitroHeatRate = s.nitroActive
+      ? POD_CONFIG.nitroOverheatRate * nitroFrac
+      : null;
+    const extraCoolRate = s.coolantActive
+      ? POD_CONFIG.coolantCoolRate * coolantFrac
+      : 0;
 
     // 1. Per-Engine Overheat & Spooling (overheated engine forced idle until cooled to 70%)
     const leftHeatState = this.updateEngineHeat(
       s.heatLeft,
       s.overheatedLeft,
       driveEnabled ? input.targetLeft : 0,
-      dt
+      dt,
+      nitroHeatRate,
+      extraCoolRate
     );
     const leftJustOverheated = !s.overheatedLeft && leftHeatState.overheated;
     s.heatLeft = leftHeatState.heat;
@@ -143,7 +225,9 @@ export class PodPhysics {
       s.heatRight,
       s.overheatedRight,
       driveEnabled ? input.targetRight : 0,
-      dt
+      dt,
+      nitroHeatRate,
+      extraCoolRate
     );
     const rightJustOverheated = !s.overheatedRight && rightHeatState.overheated;
     s.heatRight = rightHeatState.heat;
@@ -156,8 +240,13 @@ export class PodPhysics {
       s.lastOverheatDamage = dmg;
     }
 
-    const effectiveTargetLeft = s.overheatedLeft ? 0 : input.targetLeft;
-    const effectiveTargetRight = s.overheatedRight ? 0 : input.targetRight;
+    const nitroPowerAdd = s.nitroActive ? POD_CONFIG.nitroPowerAdd * nitroFrac : 0;
+    const effectiveTargetLeft = s.overheatedLeft
+      ? 0
+      : input.targetLeft + nitroPowerAdd;
+    const effectiveTargetRight = s.overheatedRight
+      ? 0
+      : input.targetRight + nitroPowerAdd;
 
     // Still rev visually during countdown when not overheated
     s.pLeft = this.spoolEngine(s.pLeft, effectiveTargetLeft, dt);
@@ -278,17 +367,21 @@ export class PodPhysics {
     s.timeToImpact = tti;
 
     // 5. Horizontal Propulsion, Air Coasting & Overdrive Boost
+    const flyingThrustInAir =
+      isFlyingMod && !s.isGrounded && (Math.abs(effLeft) > 0.05 || Math.abs(effRight) > 0.05);
+
     let driveAccel =
       (effLeft + effRight) *
       0.5 *
-      POD_CONFIG.maxForwardAccel *
-      (s.isGrounded ? 1.0 : POD_CONFIG.airborneDriveScale);
+      (POD_CONFIG.maxForwardAccel * weightMult) *
+      (s.isGrounded || isFlyingMod ? 1.0 : POD_CONFIG.airborneDriveScale);
 
     if (s.landingBoost > 0 && s.isGrounded && driveEnabled) {
       driveAccel += s.landingBoost * POD_CONFIG.vectorBoostExtraAccel;
     }
 
-    let terrainDragMult = s.isGrounded ? 1.0 : POD_CONFIG.airborneLinearDragMult;
+    let terrainDragMult =
+      s.isGrounded || flyingThrustInAir ? 1.0 : POD_CONFIG.airborneLinearDragMult;
     let terrainGripMult = 1.0;
     if (s.isGrounded) {
       if (currentFeature === 'boost_pad' && driveEnabled) {
@@ -313,8 +406,8 @@ export class PodPhysics {
     }
 
     const quadDragEff =
-      POD_CONFIG.quadDrag *
-      (s.isGrounded ? 1.0 : POD_CONFIG.airborneQuadDragMult) *
+      (POD_CONFIG.quadDrag / weightMult) *
+      (s.isGrounded || flyingThrustInAir ? 1.0 : POD_CONFIG.airborneQuadDragMult) *
       (1 - 0.48 * s.landingBoost);
 
     const dragAccel =
@@ -371,8 +464,9 @@ export class PodPhysics {
         this.peakAirImpactSpeed = curImpactNormalSpeed;
       }
 
-      // Applying thrust while airborne high up damages the pod
+      // Applying thrust while airborne high up damages the pod (bypassed by Flying Engines)
       if (
+        !isFlyingMod &&
         driveEnabled &&
         s.airTime > POD_CONFIG.takeoffThrustGraceSec &&
         tti > POD_CONFIG.thrustFlareWindowSec &&
@@ -392,7 +486,7 @@ export class PodPhysics {
 
       // Final pre-touchdown ignition window ("right before hitting the ground")
       if (
-        s.coastReady &&
+        (isFlyingMod || s.coastReady) &&
         (this.ignitionStartedInFlareWindow || tti <= POD_CONFIG.thrustFlareWindowSec) &&
         h < 16.0 &&
         s.vel.y < -1.0 &&
@@ -425,8 +519,32 @@ export class PodPhysics {
           this.flareWindowPeakMinThrust
         );
 
-        if (s.coastReady && effectiveIgnitionThrust > 0) {
-          // Coasted with both engines off >= 1s and activated both right before ground:
+        if (isFlyingMod) {
+          if (minForwardInput > 0) {
+            // Flying Engines: no 0.5s shutoff required, engines on -> zero damage, NO speed boost
+            const targetSlopeVelY = vFwd * slopeTanY;
+            s.vel.y = Math.max(s.vel.y * 0.2, targetSlopeVelY - 1.5);
+            s.vel.x = this.tmpForward.x * vFwd + this.tmpRight.x * (vLat * 0.5);
+            s.vel.z = this.tmpForward.z * vFwd + this.tmpRight.z * (vLat * 0.5);
+            if (rawImpactSpeed > POD_CONFIG.safeImpactSpeed * 0.7 || s.airTime >= 0.6) {
+              s.lastLandingEvent = 'damped_landing';
+            }
+          } else if (rawImpactSpeed > POD_CONFIG.safeImpactSpeed) {
+            // Engines were NOT on when landing -> hard impact damage!
+            const excess = rawImpactSpeed - POD_CONFIG.safeImpactSpeed;
+            const dmg = THREE.MathUtils.clamp(
+              excess * excess * POD_CONFIG.damagePerExcessSpeedSq,
+              6,
+              55
+            );
+            s.hullIntegrity = Math.max(0, s.hullIntegrity - dmg);
+            s.vel.x *= 0.65;
+            s.vel.z *= 0.65;
+            s.lastLandingEvent = 'hard_impact';
+            s.lastLandingDamage = dmg;
+          }
+        } else if (s.coastReady && effectiveIgnitionThrust > 0) {
+          // Coasted with both engines off >= 0.5s and activated both right before ground:
           // Zero damage + huge speed boost!
           const jumpScale = THREE.MathUtils.clamp(
             (s.airTime - POD_CONFIG.minAirTimeForLandingCheck) / 1.25,
@@ -604,26 +722,36 @@ export class PodPhysics {
     heat: number,
     overheated: boolean,
     target: number,
-    dt: number
+    dt: number,
+    nitroOverrideRate: number | null,
+    extraCoolRate: number
   ): { heat: number; overheated: boolean } {
     if (overheated) {
-      const nextHeat = Math.max(0, heat - POD_CONFIG.coolRateIdle * dt);
+      const nextHeat = Math.max(
+        0,
+        heat - (POD_CONFIG.coolRateIdle + extraCoolRate) * dt
+      );
       return {
         heat: nextHeat,
         overheated: nextHeat > POD_CONFIG.overheatRecoverThreshold,
       };
     }
 
-    const absTarget = Math.abs(target);
     let deltaPerSec: number;
-    if (absTarget >= 0.99) {
-      deltaPerSec = POD_CONFIG.overheatRate100;
-    } else if (absTarget >= 0.65) {
-      deltaPerSec = -POD_CONFIG.coolRate70;
-    } else if (absTarget >= 0.25) {
-      deltaPerSec = -POD_CONFIG.coolRate30;
+    if (nitroOverrideRate !== null) {
+      deltaPerSec = nitroOverrideRate;
     } else {
-      deltaPerSec = -POD_CONFIG.coolRateIdle;
+      const absTarget = Math.abs(target);
+      if (absTarget >= 0.99) {
+        deltaPerSec = POD_CONFIG.overheatRate100;
+      } else if (absTarget >= 0.65) {
+        deltaPerSec = -POD_CONFIG.coolRate70;
+      } else if (absTarget >= 0.25) {
+        deltaPerSec = -POD_CONFIG.coolRate30;
+      } else {
+        deltaPerSec = -POD_CONFIG.coolRateIdle;
+      }
+      deltaPerSec -= extraCoolRate;
     }
 
     const nextHeat = THREE.MathUtils.clamp(heat + deltaPerSec * dt, 0, 100);
