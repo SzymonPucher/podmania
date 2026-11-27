@@ -570,7 +570,7 @@ export class TrackBuilder {
         positions[idx + 2] = wz;
 
         if (s.feature === 'cave') {
-          tmpCol.multiplyScalar(0.24);
+          tmpCol.multiplyScalar(0.42);
         }
 
         colors[idx] = tmpCol.r;
@@ -681,7 +681,7 @@ export class TrackBuilder {
         const crystalMat = new THREE.MeshStandardMaterial({
           color: crystalColor,
           emissive: crystalColor,
-          emissiveIntensity: 0.55,
+          emissiveIntensity: 0.95,
           flatShading: true,
         });
         const crystal = new THREE.Mesh(crystalGeo, crystalMat);
@@ -689,7 +689,7 @@ export class TrackBuilder {
         crystal.rotation.z = side * 0.45;
         this.group.add(crystal);
 
-        const pt = new THREE.PointLight(crystalColor, 3.0, 18, 1.8);
+        const pt = new THREE.PointLight(crystalColor, 7.5, 24, 1.6);
         pt.position.copy(crystalPos).add(new THREE.Vector3(-s.right.x * side * 2, 0, -s.right.z * side * 2));
         this.group.add(pt);
       }

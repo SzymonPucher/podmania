@@ -235,7 +235,7 @@ export class PodPhysics {
     if (s.damperFiring) {
       s.damperCharge = Math.max(0, s.damperCharge - POD_CONFIG.damperDrainRate * dt);
       this.damperHoldDuration += dt;
-      if (!s.isGrounded && s.vel.y < -1.0 && h < 14.0) {
+      if (!s.isGrounded && s.vel.y < -1.0 && h < 18.0) {
         s.vel.y += POD_CONFIG.damperUpwardAccel * dt;
       }
       if (s.damperCharge <= 0) {
