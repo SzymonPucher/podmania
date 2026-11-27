@@ -123,25 +123,25 @@ export class PodMeshBuilder {
     );
 
     this.podRoot.position.copy(t.pos);
-    this.podRoot.rotation.set(t.pitch + this.damperGlideBlend * 0.18, t.yaw, t.roll, 'YXZ');
+    this.podRoot.rotation.set(t.pitch, t.yaw, t.roll, 'YXZ');
 
-    // Subtle engine vibration, damper upward lift & plane-landing glide pitch
-    this.engineDamperLift = this.damperGlideBlend * 1.15;
+    // Subtle engine vibration, high damper lift (30 deg pitch-up) & dangling cabin behind
+    this.engineDamperLift = this.damperGlideBlend * 1.85;
     const vib = (Math.abs(t.pLeft) + Math.abs(t.pRight)) * 0.008;
     this.enginesGroup.position.set(
       (Math.random() - 0.5) * vib,
       this.engineDamperLift + (Math.random() - 0.5) * vib,
       0
     );
-    this.enginesGroup.rotation.x = this.damperGlideBlend * 0.12;
+    this.enginesGroup.rotation.x = this.damperGlideBlend * THREE.MathUtils.degToRad(30);
 
     this.cockpitGroup.position.set(
       t.cockpitYawOffset * 1.4,
-      0.85 - this.damperGlideBlend * 0.35 + t.cockpitVertOffset,
+      0.85 - this.damperGlideBlend * 0.75 + t.cockpitVertOffset,
       COCKPIT_BASE_Z
     );
     this.cockpitGroup.rotation.set(
-      -this.damperGlideBlend * 0.06,
+      -this.damperGlideBlend * 0.18,
       t.cockpitYawOffset,
       t.cockpitRollOffset,
       'YXZ'
