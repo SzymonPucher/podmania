@@ -85,8 +85,6 @@ export class PodMeshBuilder {
 
   private readonly cockpitLeftArmDummy = new THREE.Object3D();
   private readonly cockpitRightArmDummy = new THREE.Object3D();
-  private cockpitBrakeLightMat!: THREE.MeshStandardMaterial;
-  private cockpitStatusLightMat!: THREE.MeshStandardMaterial;
   private cockpitRepulsorMat!: THREE.MeshStandardMaterial;
 
   private readonly plasmaLines: Array<{
@@ -208,26 +206,7 @@ export class PodMeshBuilder {
     );
     this.cockpitPilotGroup.rotation.z = t.roll * 0.3;
 
-    // Reactive cabin stern light bars & under-belly repulsor pad
-    const isBraking = t.pLeft < -0.05 || t.pRight < -0.05;
-    this.cockpitBrakeLightMat.emissiveIntensity = isBraking ? 3.2 : 0.85;
-    if (t.nitroActive) {
-      this.cockpitStatusLightMat.color.setHex(0xf97316);
-      this.cockpitStatusLightMat.emissive.setHex(0xf97316);
-      this.cockpitStatusLightMat.emissiveIntensity = 2.6;
-    } else if (t.coolantActive) {
-      this.cockpitStatusLightMat.color.setHex(0x67e8f9);
-      this.cockpitStatusLightMat.emissive.setHex(0x67e8f9);
-      this.cockpitStatusLightMat.emissiveIntensity = 2.4;
-    } else if (t.landingBoost > 0.02) {
-      this.cockpitStatusLightMat.color.setHex(0x38bdf8);
-      this.cockpitStatusLightMat.emissive.setHex(0x38bdf8);
-      this.cockpitStatusLightMat.emissiveIntensity = 1.4 + t.landingBoost * 2.0;
-    } else {
-      this.cockpitStatusLightMat.color.setHex(0x38bdf8);
-      this.cockpitStatusLightMat.emissive.setHex(0x0ea5e9);
-      this.cockpitStatusLightMat.emissiveIntensity = 1.1;
-    }
+    // Reactive under-belly repulsor pad glow
     const repulsorPulse = 0.9 + Math.sin(elapsedTime * 7.5) * 0.12;
     this.cockpitRepulsorMat.emissiveIntensity =
       (1.25 + t.landingBoost * 1.9 + (t.nitroActive ? 0.6 : 0)) * repulsorPulse;
@@ -1102,7 +1081,75 @@ export class PodMeshBuilder {
       this.cockpitGroup.add(new THREE.Mesh(rearStripeGeo, mats.blue));
     }
 
-    // 7. Smoothly beveled closed stealth stern bezel + stacked cyan/red interceptor light bar (ZERO thruster)
+    // 7. Twin canted V-tail upper stabilizer fins & compact lower ventral fins (beveled high-poly)
+    const upperFinShape = new THREE.Shape();
+    upperFinShape.moveTo(0.0, 0.0);    // front root
+    upperFinShape.lineTo(0.68, 0.0);   // rear root
+    upperFinShape.lineTo(0.92, 0.72);  // swept trailing tip
+    upperFinShape.lineTo(0.62, 0.72);  // swept leading tip
+    upperFinShape.closePath();
+
+    const lowerFinShape = new THREE.Shape();
+    lowerFinShape.moveTo(0.0, 0.0);
+    lowerFinShape.lineTo(0.46, 0.0);
+    lowerFinShape.lineTo(0.62, -0.34);
+    lowerFinShape.lineTo(0.38, -0.34);
+    lowerFinShape.closePath();
+
+    for (const s of [-1, 1] as const) {
+      // Canted upper V-tail fin
+      const upperFinGroup = new THREE.Group();
+      upperFinGroup.position.set(s * 0.25, 0.18, 0.56);
+      upperFinGroup.rotation.z = s * -0.38; // cant outward ~22 deg
+      upperFinGroup.rotation.y = s * -0.04;
+
+      const uFinGeo = new THREE.ExtrudeGeometry(upperFinShape, {
+        depth: 0.036,
+        bevelEnabled: true,
+        bevelThickness: 0.012,
+        bevelSize: 0.012,
+        bevelSegments: 4,
+      });
+      // Rotate so shape X -> +Z (rear), shape Y -> +Y (up), centered on thickness
+      uFinGeo.rotateY(-Math.PI / 2);
+      uFinGeo.translate(0.018, 0, 0);
+      const uFinMesh = new THREE.Mesh(uFinGeo, mats.cockpitSilver);
+      uFinMesh.castShadow = true;
+      upperFinGroup.add(uFinMesh);
+
+      // Cobalt-blue leading-edge stripe along upper fin
+      const uStripeGeo = new THREE.BoxGeometry(0.066, 0.64, 0.14);
+      uStripeGeo.rotateX(0.62);
+      uStripeGeo.translate(0, 0.36, 0.44);
+      upperFinGroup.add(new THREE.Mesh(uStripeGeo, mats.blue));
+      this.cockpitGroup.add(upperFinGroup);
+
+      // Compact lower ventral stabilizer fin
+      const lowerFinGroup = new THREE.Group();
+      lowerFinGroup.position.set(s * 0.26, -0.08, 0.68);
+      lowerFinGroup.rotation.z = s * 0.42;
+
+      const lFinGeo = new THREE.ExtrudeGeometry(lowerFinShape, {
+        depth: 0.028,
+        bevelEnabled: true,
+        bevelThickness: 0.009,
+        bevelSize: 0.009,
+        bevelSegments: 3,
+      });
+      lFinGeo.rotateY(-Math.PI / 2);
+      lFinGeo.translate(0.014, 0, 0);
+      const lFinMesh = new THREE.Mesh(lFinGeo, mats.cockpitSilver);
+      lFinMesh.castShadow = true;
+      lowerFinGroup.add(lFinMesh);
+
+      const lStripeGeo = new THREE.BoxGeometry(0.052, 0.28, 0.11);
+      lStripeGeo.rotateX(-0.46);
+      lStripeGeo.translate(0, -0.17, 0.34);
+      lowerFinGroup.add(new THREE.Mesh(lStripeGeo, mats.blue));
+      this.cockpitGroup.add(lowerFinGroup);
+    }
+
+    // 8. Clean closed stealth stern bezel (ZERO rear thruster, ZERO rear light strips)
     const sternShape = new THREE.Shape();
     sternShape.moveTo(-0.22, -0.09);
     sternShape.lineTo(0.22, -0.09);
@@ -1118,26 +1165,6 @@ export class PodMeshBuilder {
     });
     sternBezelGeo.translate(0, 0.06, 1.27);
     this.cockpitGroup.add(new THREE.Mesh(sternBezelGeo, mats.gunmetal));
-
-    this.cockpitStatusLightMat = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x0ea5e9,
-      emissiveIntensity: 1.2,
-      roughness: 0.2,
-    });
-    const statusBarGeo = new THREE.BoxGeometry(0.34, 0.032, 0.025);
-    statusBarGeo.translate(0, 0.102, 1.335);
-    this.cockpitGroup.add(new THREE.Mesh(statusBarGeo, this.cockpitStatusLightMat));
-
-    this.cockpitBrakeLightMat = new THREE.MeshStandardMaterial({
-      color: 0xf43f5e,
-      emissive: 0xef4444,
-      emissiveIntensity: 0.9,
-      roughness: 0.2,
-    });
-    const brakeBarGeo = new THREE.BoxGeometry(0.36, 0.038, 0.025);
-    brakeBarGeo.translate(0, 0.046, 1.335);
-    this.cockpitGroup.add(new THREE.Mesh(brakeBarGeo, this.cockpitBrakeLightMat));
 
     // 8. Compact centered under-belly cyan repulsor hover pad (smooth rounded-octagonal emitter)
     const repulsorHousingGeo = new THREE.CylinderGeometry(0.22, 0.24, 0.055, 24);
