@@ -1,8 +1,8 @@
 export const POD_CONFIG = {
-  // Propulsion & Drag (hits ~288 km/h = 80 m/s at 100% + 100%)
-  maxForwardAccel: 34.0,
+  // Propulsion & Drag (hits ~376 km/h = 104.4 m/s at 100% + 100%)
+  maxForwardAccel: 44.2,
   linearDrag: 0.12,
-  quadDrag: 0.0038,
+  quadDrag: 0.0029,
   spoolUpRate: 11.0,
   spoolDownRate: 8.5,
   reverseSnapRate: 14.0,
