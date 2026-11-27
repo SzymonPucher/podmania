@@ -148,7 +148,11 @@ class PodManiaApp {
     this.env.setBiome(biome);
     this.podVfx.setBiomeDustColor(biome);
     this.track = new TrackBuilder(this.activeMap);
-    this.checkpoints = new CheckpointSystem(this.track);
+    this.checkpoints = new CheckpointSystem(
+      this.track,
+      this.activeMap.laps ?? 1,
+      Boolean(this.activeMap.isLoop)
+    );
 
     this.scene.add(this.track.group);
     this.scene.add(this.checkpoints.group);
@@ -200,6 +204,7 @@ class PodManiaApp {
       this.activeMap,
       this.storage,
       this.checkpoints.totalCheckpoints,
+      this.checkpoints.totalLaps,
       this.selectedMod
     );
     this.hud.setState('COUNTDOWN');
@@ -409,10 +414,9 @@ class PodManiaApp {
         if (cpRes.crossedCp !== null && cpRes.splitTimeMs !== null) {
           const pbSplits = this.storage.getMapRecord(this.activeMap.id)
             .checkpointSplitsMs;
+          const idx = (cpRes.splitIndex ?? cpRes.crossedCp) - 1;
           const refSplit =
-            pbSplits && pbSplits[cpRes.crossedCp - 1] !== undefined
-              ? pbSplits[cpRes.crossedCp - 1]
-              : null;
+            pbSplits && pbSplits[idx] !== undefined ? pbSplits[idx] : null;
           const delta = refSplit !== null ? cpRes.splitTimeMs - refSplit : null;
           this.hud.showCheckpointSplit(
             cpRes.crossedCp,
@@ -420,6 +424,29 @@ class PodManiaApp {
             delta
           );
           this.audio.playCheckpoint(delta === null || delta <= 0);
+        } else if (
+          cpRes.completedLap !== null &&
+          !cpRes.finished &&
+          cpRes.splitTimeMs !== null
+        ) {
+          const pbSplits = this.storage.getMapRecord(this.activeMap.id)
+            .checkpointSplitsMs;
+          const idx = (cpRes.splitIndex ?? 1) - 1;
+          const refSplit =
+            pbSplits && pbSplits[idx] !== undefined ? pbSplits[idx] : null;
+          const delta = refSplit !== null ? cpRes.splitTimeMs - refSplit : null;
+          this.hud.showCheckpointSplit(
+            0,
+            this.checkpoints.totalCheckpoints,
+            delta
+          );
+          const nextLap = this.checkpoints.getCurrentLap();
+          const lapText =
+            nextLap === this.checkpoints.totalLaps
+              ? `FINAL LAP! (${nextLap} / ${this.checkpoints.totalLaps})`
+              : `LAP ${nextLap} / ${this.checkpoints.totalLaps}`;
+          this.hud.showEventBadge(lapText, 'vector_boost');
+          this.audio.playCheckpoint(true);
         } else if (cpRes.finished) {
           this.onRaceFinished();
         }
@@ -429,7 +456,8 @@ class PodManiaApp {
       this.podMesh.update(st, dt, this.elapsedTime);
       this.podVfx.update(st, dt);
       this.chaseCam.update(this.camera, st, dt);
-      const inCave = this.track?.findNearestSlice(st.pos.x, st.pos.z).feature === 'cave';
+      const nearFeat = this.track?.findNearestSlice(st.pos.x, st.pos.z, st.pos.y).feature;
+      const inCave = nearFeat === 'cave' || nearFeat === 'stalactite_corridor';
       this.env.update(st.pos, inCave);
       this.audio.updateEngines(
         st.pLeft,
@@ -446,7 +474,9 @@ class PodManiaApp {
         inputSnap,
         this.raceTimeMs,
         this.checkpoints.getCurrentCpNumber(),
-        this.checkpoints.totalCheckpoints
+        this.checkpoints.totalCheckpoints,
+        this.checkpoints.getCurrentLap(),
+        this.checkpoints.totalLaps
       );
       this.hud.updateTouchControls(this.input.getTouchState(), st);
     } else if (this.raceState === 'MENU') {
@@ -460,7 +490,8 @@ class PodManiaApp {
         st.pos.z + Math.cos(angle) * 11
       );
       this.camera.lookAt(st.pos.x, st.pos.y + 0.8, st.pos.z - 1.5);
-      const inCave = this.track?.findNearestSlice(st.pos.x, st.pos.z).feature === 'cave';
+      const nearFeat = this.track?.findNearestSlice(st.pos.x, st.pos.z, st.pos.y).feature;
+      const inCave = nearFeat === 'cave' || nearFeat === 'stalactite_corridor';
       this.env.update(st.pos, inCave);
     }
 

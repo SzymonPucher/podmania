@@ -7,6 +7,8 @@ export const MAP1_DUSTVEIL: MapDefinition = {
   description:
     'Sun-baked dirt canyon with sweeping banked berms, a crystal-lit cavern hairpin, and two massive chasm drops.',
   playable: true,
+  difficulty: 'easy',
+  biome: 'desert',
   medalsMs: {
     gold: 52000,
     silver: 61000,

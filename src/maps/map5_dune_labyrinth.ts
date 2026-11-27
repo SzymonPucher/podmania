@@ -7,6 +7,7 @@ export const MAP5_DUNE_LABYRINTH: MapDefinition = {
   description:
     'Rolling sand-dune waves, a 200m monolith slalom arena, a bioluminescent geode cavern, and steep downhill sprints.',
   playable: true,
+  difficulty: 'hard',
   biome: 'desert_geode',
   medalsMs: {
     gold: 56000,

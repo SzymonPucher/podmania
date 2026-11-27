@@ -273,7 +273,13 @@ export class PodPhysics {
       : 0;
 
     const horizSpeed = Math.hypot(s.vel.x, s.vel.z);
-    const currentFeature = track.findNearestSlice(s.pos.x, s.pos.z).feature;
+    const nearestSlice = track.findNearestSlice(s.pos.x, s.pos.z, s.pos.y);
+    const currentFeature = nearestSlice.feature;
+    const relSliceX = s.pos.x - nearestSlice.center.x;
+    const relSliceZ = s.pos.z - nearestSlice.center.z;
+    const sliceLatDist = relSliceX * nearestSlice.right.x + relSliceZ * nearestSlice.right.z;
+    const absSliceLatFrac =
+      Math.abs(sliceLatDist) / Math.max(1, nearestSlice.canyonWidth * 0.5);
 
     // 2. Differential Yaw & Heading
     const speedFactor =
@@ -380,6 +386,25 @@ export class PodPhysics {
       driveAccel += s.landingBoost * POD_CONFIG.vectorBoostExtraAccel;
     }
 
+    // Abyss fall check on true void gaps and crumbling bridges
+    if (
+      (currentFeature === 'void_gap' || currentFeature === 'crumbling_bridge') &&
+      s.pos.y < nearestSlice.center.y - 26.0
+    ) {
+      s.hullIntegrity = 0;
+    }
+
+    // Lateral crosswind gusts
+    if (currentFeature === 'crosswind_zone' && driveEnabled) {
+      const gustAccel = 11.5 * (nearestSlice.windDir ?? 1);
+      s.vel.x += nearestSlice.right.x * gustAccel * dt;
+      s.vel.z += nearestSlice.right.z * gustAccel * dt;
+    }
+
+    // Recalculate forward/lateral velocity components after crosswind
+    vFwd = s.vel.x * this.tmpForward.x + s.vel.z * this.tmpForward.z;
+    vLat = s.vel.x * this.tmpRight.x + s.vel.z * this.tmpRight.z;
+
     let terrainDragMult =
       s.isGrounded || flyingThrustInAir ? 1.0 : POD_CONFIG.airborneLinearDragMult;
     let terrainGripMult = 1.0;
@@ -390,9 +415,50 @@ export class PodPhysics {
       } else if (currentFeature === 'rough_scree') {
         terrainDragMult = 1.28;
         terrainGripMult = 0.9;
-      } else if (currentFeature === 'bridge_deck') {
+      } else if (currentFeature === 'bridge_deck' || currentFeature === 'double_decker' || currentFeature === 'spiral_helix') {
         terrainDragMult = 0.9;
         terrainGripMult = 1.3;
+      } else if (currentFeature === 'half_pipe') {
+        terrainDragMult = 0.94;
+        terrainGripMult = 1.25;
+      } else if (currentFeature === 'wallride_bowl') {
+        terrainDragMult = 0.92;
+        terrainGripMult = 1.55;
+      } else if (currentFeature === 'off_camber') {
+        terrainDragMult = 1.0;
+        terrainGripMult = 0.76;
+      } else if (currentFeature === 'whoops_section') {
+        terrainDragMult = 1.12;
+        terrainGripMult = 0.9;
+      } else if (currentFeature === 'water_ford') {
+        terrainDragMult = 1.22;
+        terrainGripMult = 0.88;
+        if (!s.overheatedLeft) s.heatLeft = Math.max(0, s.heatLeft - 26.0 * dt);
+        if (!s.overheatedRight) s.heatRight = Math.max(0, s.heatRight - 26.0 * dt);
+      } else if (currentFeature === 'silt_trench') {
+        const ribbonCenter = Math.sin(nearestSlice.distance * 0.045) * nearestSlice.canyonWidth * 0.21;
+        if (Math.abs(sliceLatDist - ribbonCenter) > 5.0) {
+          terrainDragMult = 1.82;
+          terrainGripMult = 0.68;
+        } else {
+          terrainDragMult = 0.95;
+          terrainGripMult = 1.15;
+        }
+      } else if (currentFeature === 'asymmetric_fork') {
+        if (sliceLatDist < -4.0) {
+          terrainDragMult = 0.86;
+          terrainGripMult = 1.25;
+        } else {
+          terrainDragMult = 1.06;
+        }
+      } else if (currentFeature === 'hazard_pit' && absSliceLatFrac < 0.4) {
+        terrainDragMult = 1.65;
+        terrainGripMult = 0.8;
+        if (driveEnabled) {
+          s.hullIntegrity = Math.max(0, s.hullIntegrity - 5.5 * dt);
+          s.heatLeft = Math.min(100, s.heatLeft + 18.0 * dt);
+          s.heatRight = Math.min(100, s.heatRight + 18.0 * dt);
+        }
       }
     }
 

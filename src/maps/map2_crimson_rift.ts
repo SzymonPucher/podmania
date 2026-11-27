@@ -7,6 +7,7 @@ export const MAP2_CRIMSON_RIFT: MapDefinition = {
   description:
     'Volcanic basalt canyon with twin-ledge ridge splits, deep chasm plunges, and a glowing lava-tube cavern.',
   playable: true,
+  difficulty: 'hard',
   biome: 'volcanic',
   medalsMs: {
     gold: 54000,

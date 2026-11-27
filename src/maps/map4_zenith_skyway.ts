@@ -7,6 +7,7 @@ export const MAP4_ZENITH_SKYWAY: MapDefinition = {
   description:
     'Suspended high-altitude skyway decks with steep gravity drops, twin-lane causeway splits, and multi-tier tower plunges.',
   playable: true,
+  difficulty: 'medium',
   biome: 'skyway',
   medalsMs: {
     gold: 50000,

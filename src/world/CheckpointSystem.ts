@@ -18,15 +18,20 @@ export interface CheckpointSnapshot {
 export class CheckpointSystem {
   public readonly group = new THREE.Group();
   public readonly totalCheckpoints: number;
+  public readonly totalLaps: number;
+  public readonly isLoop: boolean;
 
   private readonly gates: GateVisual[] = [];
   private nextCpIndex = 0;
+  private currentLap = 1;
   private splitsMs: number[] = [];
   private lastSnapshot: CheckpointSnapshot;
   private prevPodPos = new THREE.Vector3();
 
-  constructor(track: TrackBuilder) {
+  constructor(track: TrackBuilder, totalLaps = 1, isLoop = false) {
     this.totalCheckpoints = track.checkpoints.filter((c) => !c.isFinish).length;
+    this.totalLaps = Math.max(1, totalLaps);
+    this.isLoop = isLoop;
 
     const start = track.startSlice;
     const startYaw = Math.atan2(-start.tangent.x, -start.tangent.z);
@@ -37,10 +42,12 @@ export class CheckpointSystem {
       modTankSec: 0,
     };
 
-    // Start arch
-    this.buildStartArch(start.center, start.tangent, start.canyonWidth);
+    // Start arch (on open tracks; closed loops share the Start/Finish gate at u=0)
+    if (!this.isLoop) {
+      this.buildStartArch(start.center, start.tangent, start.canyonWidth);
+    }
 
-    // Checkpoints + Finish arch
+    // Checkpoints + Finish/Lap arch
     for (const cp of track.checkpoints) {
       const gate = this.buildGateArch(cp);
       this.gates.push(gate);
@@ -52,6 +59,7 @@ export class CheckpointSystem {
 
   public reset(startPos: THREE.Vector3, startYaw: number, modTankSec = 0): void {
     this.nextCpIndex = 0;
+    this.currentLap = 1;
     this.splitsMs = [];
     this.lastSnapshot = {
       pos: startPos.clone(),
@@ -76,6 +84,10 @@ export class CheckpointSystem {
     return Math.min(this.nextCpIndex, this.totalCheckpoints);
   }
 
+  public getCurrentLap(): number {
+    return this.currentLap;
+  }
+
   public getSplits(): number[] {
     return this.splitsMs;
   }
@@ -86,13 +98,21 @@ export class CheckpointSystem {
     modTankSec = 0
   ): {
     crossedCp: number | null;
+    completedLap: number | null;
+    splitIndex: number | null;
     finished: boolean;
     splitTimeMs: number | null;
   } {
     const activeGate = this.gates[this.nextCpIndex];
     if (!activeGate) {
       this.prevPodPos.copy(podPos);
-      return { crossedCp: null, finished: false, splitTimeMs: null };
+      return {
+        crossedCp: null,
+        completedLap: null,
+        splitIndex: null,
+        finished: false,
+        splitTimeMs: null,
+      };
     }
 
     const cp = activeGate.data;
@@ -107,14 +127,42 @@ export class CheckpointSystem {
     const lateralSq =
       (podPos.x - cp.position.x) * (podPos.x - cp.position.x) +
       (podPos.z - cp.position.z) * (podPos.z - cp.position.z);
-    const maxRadius = cp.canyonWidth * 0.72;
+    const maxRadius = cp.canyonWidth * 0.78;
 
     this.prevPodPos.copy(podPos);
 
     if (prevDot <= 0 && currDot > 0 && lateralSq <= maxRadius * maxRadius) {
       this.splitsMs.push(raceTimeMs);
+      const splitIndex = this.splitsMs.length;
+
       if (cp.isFinish) {
-        return { crossedCp: null, finished: true, splitTimeMs: raceTimeMs };
+        if (this.currentLap < this.totalLaps) {
+          const completedLap = this.currentLap;
+          this.currentLap++;
+          const yaw = Math.atan2(-cp.tangent.x, -cp.tangent.z);
+          this.lastSnapshot = {
+            pos: new THREE.Vector3(cp.position.x, cp.position.y + 1.9, cp.position.z),
+            yaw,
+            pitch: 0,
+            modTankSec,
+          };
+          this.nextCpIndex = 0;
+          this.refreshGateColors();
+          return {
+            crossedCp: null,
+            completedLap,
+            splitIndex,
+            finished: false,
+            splitTimeMs: raceTimeMs,
+          };
+        }
+        return {
+          crossedCp: null,
+          completedLap: this.currentLap,
+          splitIndex,
+          finished: true,
+          splitTimeMs: raceTimeMs,
+        };
       }
 
       const cpNum = cp.index;
@@ -127,10 +175,22 @@ export class CheckpointSystem {
       };
       this.nextCpIndex++;
       this.refreshGateColors();
-      return { crossedCp: cpNum, finished: false, splitTimeMs: raceTimeMs };
+      return {
+        crossedCp: cpNum,
+        completedLap: null,
+        splitIndex,
+        finished: false,
+        splitTimeMs: raceTimeMs,
+      };
     }
 
-    return { crossedCp: null, finished: false, splitTimeMs: null };
+    return {
+      crossedCp: null,
+      completedLap: null,
+      splitIndex: null,
+      finished: false,
+      splitTimeMs: null,
+    };
   }
 
   private refreshGateColors(): void {

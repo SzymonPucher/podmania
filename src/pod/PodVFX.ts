@@ -213,6 +213,8 @@ export class PodVFX {
       glacier: 0xdbeafe,
       skyway: 0xe2e8f0,
       desert_geode: 0xeab36b,
+      badlands: 0xa3b18a,
+      starlight: 0x818cf8,
     };
     mat.color.setHex(colors[biome] ?? 0xd9a873);
   }

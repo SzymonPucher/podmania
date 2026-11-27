@@ -4,11 +4,12 @@ import {
   TOUCH_SLIDER_TOP_FRAC,
   TOUCH_SLIDER_ZERO_FRAC,
 } from '../core/InputManager';
-import { MAP_REGISTRY } from '../maps/mapRegistry';
+import { DIFFICULTY_TIERS, getMapById, MAP_REGISTRY } from '../maps/mapRegistry';
 import { getModificationById, POD_CONFIG, POD_MODIFICATIONS } from '../pod/PodConfig';
 import type {
   InputSnapshot,
   MapDefinition,
+  MapDifficulty,
   MedalTier,
   PodModificationId,
   PodTelemetry,
@@ -55,6 +56,7 @@ export class HudController {
   private readonly finishEl = document.getElementById('finish-overlay')!;
   private readonly modGridEl = document.getElementById('mod-grid')!;
   private readonly menuModPillEl = document.getElementById('menu-selected-mod-pill')!;
+  private readonly diffTabsEl = document.getElementById('difficulty-tabs')!;
   private readonly mapGridEl = document.getElementById('map-grid')!;
 
   private readonly mapNameEl = document.getElementById('hud-map-name')!;
@@ -62,6 +64,7 @@ export class HudController {
   private readonly hudSpaceHintEl = document.getElementById('hud-space-hint')!;
   private readonly hudSpaceActionEl = document.getElementById('hud-space-action')!;
   private readonly timerEl = document.getElementById('hud-timer')!;
+  private readonly lapProgressEl = document.getElementById('hud-lap-progress')!;
   private readonly cpProgressEl = document.getElementById('hud-cp-progress')!;
   private readonly splitPillEl = document.getElementById('hud-split-pill')!;
 
@@ -108,6 +111,7 @@ export class HudController {
 
   private splitHideTimeout: number | null = null;
   private badgeHideTimeout: number | null = null;
+  private activeDifficultyFilter: MapDifficulty | 'all' = 'all';
 
   constructor(private readonly actions: HudActions) {
     document.getElementById('btn-resume')?.addEventListener('click', () => this.actions.onResume());
@@ -179,52 +183,116 @@ export class HudController {
 
   public renderMapMenu(storage: StorageManager, selectedMod: PodModificationId): void {
     this.renderModificationMenu(selectedMod);
+    this.renderDifficultyTabs(storage, selectedMod);
     this.mapGridEl.innerHTML = '';
-    for (const map of MAP_REGISTRY) {
-      const unlocked = storage.isMapUnlocked(map);
-      const record = storage.getMapRecord(map.id);
 
-      const card = document.createElement('div');
-      card.className = `map-card ${map.playable && unlocked ? 'selected-playable' : ''} ${!unlocked ? 'locked' : ''}`;
+    const tiersToShow =
+      this.activeDifficultyFilter === 'all'
+        ? DIFFICULTY_TIERS
+        : DIFFICULTY_TIERS.filter((t) => t.id === this.activeDifficultyFilter);
 
-      const medalText = record.bestMedal === 'none' ? 'No Medal' : record.bestMedal.toUpperCase();
-      const pbText = record.bestTimeMs !== null ? formatTimeMs(record.bestTimeMs) : '--:--.---';
+    for (const tier of tiersToShow) {
+      const tierMaps = MAP_REGISTRY.filter((m) => (m.difficulty ?? 'easy') === tier.id);
+      if (tierMaps.length === 0) continue;
 
-      let statusHtml = '';
-      if (!unlocked) {
-        statusHtml = `<button class="btn btn-secondary" disabled>LOCKED — Beat Silver on Dustveil Gorge</button>`;
-      } else if (!map.playable) {
-        statusHtml = `<button class="btn btn-secondary" disabled>UNLOCKED — Map 02 Coming Soon</button>`;
-      } else {
-        statusHtml = `<button class="btn btn-primary" data-map-id="${map.id}">Launch Time Trial</button>`;
-      }
-
-      card.innerHTML = `
-        <div>
-          <div class="map-title-tag">${map.subtitle}</div>
-          <h3>${map.name}</h3>
-          <p>${map.description}</p>
-        </div>
-        <div>
-          ${
-            map.playable
-              ? `<div class="map-stats">
-                   <span>Best: <strong>${pbText}</strong></span>
-                   <span>Medal: <strong>${medalText}</strong></span>
-                   <span>Score: <strong>${record.bestScore.toLocaleString()}</strong></span>
-                 </div>`
-              : `<div class="map-stats"><span>${unlocked ? 'Status: Unlocked' : 'Status: Locked (Silver Req.)'}</span></div>`
-          }
-          <div style="margin-top: 12px;">${statusHtml}</div>
+      const sectionEl = document.createElement('div');
+      sectionEl.className = 'difficulty-group';
+      sectionEl.innerHTML = `
+        <div class="difficulty-group-header">
+          <span class="difficulty-group-title" style="color: ${tier.color};">${tier.label} (${tierMaps.length})</span>
+          <span class="difficulty-group-sub">${tier.subtitle}</span>
         </div>
       `;
 
-      const playBtn = card.querySelector<HTMLButtonElement>('button[data-map-id]');
-      if (playBtn) {
-        playBtn.addEventListener('click', () => this.actions.onSelectMap(map.id));
+      const gridEl = document.createElement('div');
+      gridEl.className = 'map-grid';
+
+      for (const map of tierMaps) {
+        const unlocked = storage.isMapUnlocked(map);
+        const record = storage.getMapRecord(map.id);
+
+        const card = document.createElement('div');
+        card.className = `map-card ${map.playable && unlocked ? 'selected-playable' : ''} ${!unlocked ? 'locked' : ''}`;
+
+        const medalText = record.bestMedal === 'none' ? 'No Medal' : record.bestMedal.toUpperCase();
+        const pbText = record.bestTimeMs !== null ? formatTimeMs(record.bestTimeMs) : '--:--.---';
+        const goldText = map.medalsMs ? formatTimeMs(map.medalsMs.gold) : '--:--.---';
+        const laps = map.laps ?? 1;
+        const isMarathon = (map.medalsMs?.gold ?? 0) >= 180000;
+
+        const badges: string[] = [
+          `<span class="map-pill" style="border-color: ${tier.color}; color: ${tier.color};">${tier.label}</span>`,
+        ];
+        if (map.isLoop || laps > 1) {
+          badges.push(`<span class="map-pill map-pill-loop">${laps}-Lap Loop</span>`);
+        }
+        if (isMarathon) {
+          badges.push(`<span class="map-pill map-pill-marathon">3+ Min Epic</span>`);
+        }
+
+        let statusHtml = '';
+        if (!unlocked && map.unlockRequirement) {
+          const reqMap = getMapById(map.unlockRequirement.mapId);
+          statusHtml = `<button class="btn btn-secondary" disabled>LOCKED — Beat ${map.unlockRequirement.minMedal.toUpperCase()} on ${reqMap.name}</button>`;
+        } else if (!map.playable) {
+          statusHtml = `<button class="btn btn-secondary" disabled>Coming Soon</button>`;
+        } else {
+          statusHtml = `<button class="btn btn-primary" data-map-id="${map.id}">Launch Time Trial</button>`;
+        }
+
+        card.innerHTML = `
+          <div>
+            <div class="map-badges-row">${badges.join('')}</div>
+            <div class="map-title-tag">${map.subtitle}</div>
+            <h3>${map.name}</h3>
+            <p>${map.description}</p>
+          </div>
+          <div>
+            <div class="map-stats">
+              <span>Gold: <strong>${goldText}</strong></span>
+              <span>Best: <strong>${pbText}</strong></span>
+              <span>Medal: <strong>${medalText}</strong></span>
+            </div>
+            <div style="margin-top: 12px;">${statusHtml}</div>
+          </div>
+        `;
+
+        const playBtn = card.querySelector<HTMLButtonElement>('button[data-map-id]');
+        if (playBtn) {
+          playBtn.addEventListener('click', () => this.actions.onSelectMap(map.id));
+        }
+
+        gridEl.appendChild(card);
       }
 
-      this.mapGridEl.appendChild(card);
+      sectionEl.appendChild(gridEl);
+      this.mapGridEl.appendChild(sectionEl);
+    }
+  }
+
+  private renderDifficultyTabs(
+    storage: StorageManager,
+    selectedMod: PodModificationId
+  ): void {
+    this.diffTabsEl.innerHTML = '';
+    const options: { id: MapDifficulty | 'all'; label: string }[] = [
+      { id: 'all', label: `All (${MAP_REGISTRY.length})` },
+      ...DIFFICULTY_TIERS.map((t) => ({
+        id: t.id,
+        label: `${t.label} (${MAP_REGISTRY.filter((m) => (m.difficulty ?? 'easy') === t.id).length})`,
+      })),
+    ];
+
+    for (const opt of options) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `diff-tab ${this.activeDifficultyFilter === opt.id ? 'active' : ''}`;
+      btn.textContent = opt.label;
+      btn.addEventListener('click', () => {
+        this.activeDifficultyFilter = opt.id;
+        this.renderMapMenu(storage, selectedMod);
+      });
+      this.diffTabsEl.appendChild(btn);
     }
   }
 
@@ -232,6 +300,7 @@ export class HudController {
     map: MapDefinition,
     storage: StorageManager,
     totalCps: number,
+    totalLaps: number,
     selectedMod: PodModificationId
   ): void {
     const modDef = getModificationById(selectedMod);
@@ -264,6 +333,12 @@ export class HudController {
       this.touchMidCueEl.classList.add('hidden');
     }
 
+    if (totalLaps > 1) {
+      this.lapProgressEl.classList.remove('hidden');
+      this.lapProgressEl.textContent = `LAP 1 / ${totalLaps}`;
+    } else {
+      this.lapProgressEl.classList.add('hidden');
+    }
     this.cpProgressEl.textContent = `CP 0 / ${totalCps}`;
     this.splitPillEl.classList.add('hidden');
     this.eventBadgeEl.classList.add('hidden');
@@ -374,9 +449,14 @@ export class HudController {
     input: InputSnapshot,
     raceTimeMs: number,
     cpCount: number,
-    totalCps: number
+    totalCps: number,
+    currentLap = 1,
+    totalLaps = 1
   ): void {
     this.timerEl.textContent = formatTimeMs(raceTimeMs);
+    if (totalLaps > 1) {
+      this.lapProgressEl.textContent = `LAP ${currentLap} / ${totalLaps}`;
+    }
     this.cpProgressEl.textContent = `CP ${cpCount} / ${totalCps}`;
     this.speedEl.textContent = String(Math.round(t.speedKmh));
 

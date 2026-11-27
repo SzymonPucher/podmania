@@ -7,6 +7,7 @@ export const MAP3_FROSTSPIRE: MapDefinition = {
   description:
     'Steep glacial downhill chutes for building raw speed, sweeping banked hairpins, and a crystalline ice cavern.',
   playable: true,
+  difficulty: 'medium',
   biome: 'glacier',
   medalsMs: {
     gold: 53000,

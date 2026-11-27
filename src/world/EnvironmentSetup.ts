@@ -82,6 +82,32 @@ const BIOME_ATMOSPHERES: Record<MapBiome, BiomeAtmosphere> = {
     sunIntensity: 0.98,
     envIntensity: 0.52,
   },
+  badlands: {
+    topColor: 0x1e3a2f,
+    horizonColor: 0x8fa86b,
+    bottomColor: 0x3f4d28,
+    fogColor: 0x7b915c,
+    fogDensity: 0.00062,
+    hemiSky: 0xbef264,
+    hemiGround: 0x4b5320,
+    hemiIntensity: 0.52,
+    sunColor: 0xecfccb,
+    sunIntensity: 1.35,
+    envIntensity: 0.62,
+  },
+  starlight: {
+    topColor: 0x090d24,
+    horizonColor: 0x312e81,
+    bottomColor: 0x1e1b4b,
+    fogColor: 0x1e1b4b,
+    fogDensity: 0.00052,
+    hemiSky: 0x818cf8,
+    hemiGround: 0x312e81,
+    hemiIntensity: 0.55,
+    sunColor: 0xc7d2fe,
+    sunIntensity: 1.45,
+    envIntensity: 0.68,
+  },
 };
 
 export class EnvironmentSetup {

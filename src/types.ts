@@ -2,6 +2,8 @@ import type * as THREE from 'three';
 
 export type MedalTier = 'none' | 'bronze' | 'silver' | 'gold';
 
+export type MapDifficulty = 'easy' | 'medium' | 'hard' | 'expert';
+
 export type PodModificationId = 'none' | 'nitro' | 'cooled' | 'flying';
 
 export interface PodModificationDef {
@@ -40,9 +42,37 @@ export type TrackFeature =
   | 'split_terrace'
   | 'pillar_slalom'
   | 'half_rock_left'
-  | 'half_rock_right';
+  | 'half_rock_right'
+  | 'half_pipe'
+  | 'wallride_bowl'
+  | 'stepped_cascade'
+  | 'void_gap'
+  | 'double_decker'
+  | 'tabletop_jump'
+  | 'stalactite_corridor'
+  | 'crosswind_zone'
+  | 'crumbling_bridge'
+  | 'hazard_pit'
+  | 'energy_gates'
+  | 'debris_field'
+  | 'silt_trench'
+  | 'off_camber'
+  | 'whoops_section'
+  | 'water_ford'
+  | 'asymmetric_fork'
+  | 'spiral_helix'
+  | 'double_apex'
+  | 'funnel_squeeze'
+  | 'rock_arch_sequence';
 
-export type MapBiome = 'desert' | 'volcanic' | 'glacier' | 'skyway' | 'desert_geode';
+export type MapBiome =
+  | 'desert'
+  | 'volcanic'
+  | 'glacier'
+  | 'skyway'
+  | 'desert_geode'
+  | 'badlands'
+  | 'starlight';
 
 export interface TrackStationDef {
   pos: [number, number, number];
@@ -65,7 +95,10 @@ export interface MapDefinition {
   subtitle: string;
   description: string;
   playable: boolean;
+  difficulty?: MapDifficulty;
   biome?: MapBiome;
+  laps?: number;
+  isLoop?: boolean;
   unlockRequirement?: {
     mapId: string;
     minMedal: Exclude<MedalTier, 'none'>;

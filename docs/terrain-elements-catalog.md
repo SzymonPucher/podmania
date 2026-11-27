@@ -1,58 +1,82 @@
 # Terrain & Track Element Catalog
 
-A catalog of terrain features and layout elements across all playable maps in Podmania, based on [mapRegistry.ts](../src/maps/mapRegistry.ts) and [TrackBuilder.ts](../src/world/TrackBuilder.ts).
+A catalog of all 36 terrain features and layout elements across all 25 playable maps in Podmania, based on [mapRegistry.ts](../src/maps/mapRegistry.ts), [TrackBuilder.ts](../src/world/TrackBuilder.ts), and [PodPhysics.ts](../src/pod/PodPhysics.ts).
 
-## Maps Reference
+## Maps Reference (Categorized by Difficulty)
 
+### Easy (6 Maps)
 - **Dustveil Gorge** — [map1_dustveil.ts](../src/maps/map1_dustveil.ts)
-- **Crimson Rift** — [map2_crimson_rift.ts](../src/maps/map2_crimson_rift.ts)
+- **Sunstone Arches** — [map6_sunstone_arches.ts](../src/maps/map6_sunstone_arches.ts)
+- **Oasis Mirage Circuit** *(3-Lap Loop)* — [map7_emerald_oasis_loop.ts](../src/maps/map7_emerald_oasis_loop.ts)
+- **Glacial U-Trough** — [map8_glacier_halfpipe.ts](../src/maps/map8_glacier_halfpipe.ts)
+- **Cloudspan Causeway** — [map9_cloudspan_causeway.ts](../src/maps/map9_cloudspan_causeway.ts)
+- **Amber Mesa Fork** — [map10_amber_mesa.ts](../src/maps/map10_amber_mesa.ts)
+
+### Medium (7 Maps)
 - **Frostspire Glacier** — [map3_frostspire.ts](../src/maps/map3_frostspire.ts)
 - **Zenith Skyway** — [map4_zenith_skyway.ts](../src/maps/map4_zenith_skyway.ts)
+- **Cinder Velodrome** *(3-Lap Loop)* — [map11_cinder_bowl_loop.ts](../src/maps/map11_cinder_bowl_loop.ts)
+- **Copperhead Badlands** — [map12_copperhead_whoops.ts](../src/maps/map12_copperhead_whoops.ts)
+- **Twin-Span Viaduct** — [map13_overpass_canyon.ts](../src/maps/map13_overpass_canyon.ts)
+- **Gale-Force Spire** — [map14_zephyr_ridge.ts](../src/maps/map14_zephyr_ridge.ts)
+- **Shattered Shale Run** — [map15_shale_cascade.ts](../src/maps/map15_shale_cascade.ts)
+
+### Hard (6 Maps)
+- **Crimson Rift** — [map2_crimson_rift.ts](../src/maps/map2_crimson_rift.ts)
 - **Sunscorch Labyrinth** — [map5_dune_labyrinth.ts](../src/maps/map5_dune_labyrinth.ts)
+- **Sulfur Acid Caldera** — [map16_acid_caldera.ts](../src/maps/map16_acid_caldera.ts)
+- **Ion Conduit Ring** *(3-Lap Loop)* — [map17_reactor_gates_loop.ts](../src/maps/map17_reactor_gates_loop.ts)
+- **Widowmaker Spire** — [map18_widowmaker_helix.ts](../src/maps/map18_widowmaker_helix.ts)
+- **Great Rift Odyssey** *(3+ Min Continental Marathon)* — [map19_great_rift_odyssey.ts](../src/maps/map19_great_rift_odyssey.ts)
+
+### Expert (6 Maps)
+- **Skyfall Ruined Viaduct** — [map20_skyfall_ruins.ts](../src/maps/map20_skyfall_ruins.ts)
+- **Pod Graveyard Gauntlet** — [map21_graveyard_gauntlet.ts](../src/maps/map21_graveyard_gauntlet.ts)
+- **Obsidian Vortex** — [map22_obsidian_vortex.ts](../src/maps/map22_obsidian_vortex.ts)
+- **Subzero Crevasse** — [map23_cryo_abyss_run.ts](../src/maps/map23_cryo_abyss_run.ts)
+- **Colossus Sky Grand Prix** *(3-Lap Loop • 3+ Min Marathon)* — [map24_colossus_grand_prix.ts](../src/maps/map24_colossus_grand_prix.ts)
+- **Trans-Planetary Crucible** *(3+ Min Ultimate Marathon)* — [map25_trans_planetary_marathon.ts](../src/maps/map25_trans_planetary_marathon.ts)
+
+---
 
 ## Element Catalog
 
 | Element | Description | Maps Where It Appears |
 | :--- | :--- | :--- |
-| **Big Height Difference / Chasm Plunge** | Major vertical drops (`22m–44m` per drop) combining `jump_lip` or `cliff_drop` with `chasm_floor` and `landing_slope`. | Dustveil Gorge (24m & 44m drops), Crimson Rift (26m & 42m drops), Frostspire Glacier (32m drop), Zenith Skyway (24m & 32m drops), Sunscorch Labyrinth (28m & 22m drops) |
-| **Sheer Cliff Drop** (`cliff_drop`) | Level cliff edge with warning pylons that drops vertically (`42m–44m`) into a deep basin. | Dustveil Gorge (44m drop), Crimson Rift (42m drop) |
-| **Two-Tier Split Terrace** (`split_terrace`) | Extra-wide (`56m`) divided section where the left half climbs along a long, gradual slope up to `+24m` above the right half; players can drop onto the lower half mid-section, and the upper terrace ends in a drop. | Zenith Skyway |
-| **200m Obstacle Slalom Arena** (`pillar_slalom`) | Ultra-wide (`200m`) basin filled with staggered rock outcrops to slalom through, plus huge optional launch ramps to jump over sections of obstacles. | Sunscorch Labyrinth |
-| **Half-Track Rock Barrier** (`half_rock_left` / `half_rock_right`) | Giant jagged rock blocking either the left or right half of the track (on straights, inside turns, or outside turns); can be chained for high-speed slaloms. | Dustveil Gorge, Crimson Rift |
-| **Sharp Turn / Hairpin** | Tight direction-reversing bends with heavy banking (`14°–18°`), often inside caverns or drift sectors. | Dustveil Gorge (Echoing Cavern, `-18°`), Crimson Rift (Lava Tube Cavern, `±14°`), Frostspire Glacier (Drift Hairpins & Ice Prism Cavern, `±16°`), Sunscorch Labyrinth (Geode Cavern, `-16°`) |
-| **S-Bend / Slalom** | Rapidly alternating left/right banked turns (`10°–16°` reversals). | Dustveil Gorge (Twin-Arch Serpentine, Finish Chicane), Frostspire Glacier (Frozen Basin Slalom), Zenith Skyway (S-Bend Causeway), Sunscorch Labyrinth (Boulder Scree Wash) |
-| **Middle Track Height Divider** (`ridge_split`) | Raised central rock spine splitting the track into two parallel channels (`32–36m` total width). | Crimson Rift (Twin-Ledge Basalt Split, Caldera Ridge) |
-| **Enclosed Cavern** (`cave`) | Pitch-dark roofed rock/ice/geode tunnel with dim crystal glints and ceiling collision where the pod's engines are the brightest light source. | Dustveil Gorge, Crimson Rift, Frostspire Glacier, Sunscorch Labyrinth |
-| **Jumpy Section — Rolling Dunes** (`sand_dunes`) | Sinusoidal wave-shaped terrain floor creating rhythmic vertical bumps. | Sunscorch Labyrinth |
-| **Jumpy Section — Rough Scree** (`rough_scree`) | Jagged, uneven boulder-strewn floor with high surface noise. | *(available terrain type; currently unused in maps)* |
-| **Steep Downhill Speed Chute** | Long, steep downward slope (`26m–38m` descent over `200m–310m`) that builds raw speed via gravity before jumps or finish sprints. | Frostspire Glacier, Zenith Skyway, Sunscorch Labyrinth |
-| **Elevated Skyway / Bridge Deck** (`bridge_deck`) | Flat suspended causeway with low outer curbs and open drop-offs instead of canyon walls. | Zenith Skyway |
-| **Banked Canyon Berm** | Angled track floor (`6°–18°` banking) for carrying speed through curves. | Dustveil Gorge, Crimson Rift, Frostspire Glacier, Zenith Skyway, Sunscorch Labyrinth |
-| **Narrow Technical Squeeze** | Tight `20–22m` canyon width sections (compared to `28–36m` wide basins/splits). | Dustveil Gorge (`20m`), Crimson Rift (`22m`), Frostspire Glacier (`22m`), Sunscorch Labyrinth (`22m`) |
-| **Finish Basin** (`finish_basin`) | Widened (`26–30m`) final stretch leading through the finish gate. | Dustveil Gorge, Crimson Rift, Frostspire Glacier, Zenith Skyway, Sunscorch Labyrinth |
-
-## Proposed Elements
-
-| Element | Category | Description |
-| :--- | :--- | :--- |
-| **Half-Pipe / U-Trough** (`half_pipe`) | Verticality & Acrobatics | Deep concave U-shaped channel where high-speed pods can ride high up the curved walls to set up corner entries or dodge floor hazards. |
-| **Wallride Bowl** (`wallride_bowl`) | Verticality & Acrobatics | Extreme `35°–65°` sweeping outer wallride curve that lets pods hold full throttle through a massive turn without washing out. |
-| **Stepped Cascade** (`stepped_cascade`) | Verticality & Acrobatics | Series of 3–5 rapid medium drops (`6m–10m` each) where fast pods can clear multiple steps in one jump while slower pods bounce down step-by-step. |
-| **True Void Gap Jump** (`void_gap`) | Verticality & Acrobatics | Broken bridge or split cliff with no `chasm_floor` underneath, requiring enough speed or boost to clear the gap onto the far landing deck. |
-| **Double-Decker / Over-Under** (`double_decker`) | Verticality & Acrobatics | Stacked two-level section where an upper bridge/stone span runs directly above a lower tunnel or floor path, offering a high-risk upper line and a safer lower line. |
-| **Tabletop Plateau Jump** (`tabletop_jump`) | Verticality & Acrobatics | Launch ramp onto an elevated flat mesa plateau followed by a down-ramp, rewarding speed control so pods land cleanly on top rather than overshooting. |
-| **Stalactite / Low-Clearance Ceiling** (`stalactite_corridor`) | Hazards & Obstacles | Low-roofed cavern or overhang studded with hanging rock/ice formations that punish big air and force pods to stay low and flat. |
-| **Crosswind Gust Zone** (`crosswind_zone`) | Hazards & Obstacles | Exposed cliffside or canyon gap with visible dust/snow wind streaks that push pods laterally, requiring active counter-steering. |
-| **Crumbling Bridge Deck** (`crumbling_bridge`) | Hazards & Obstacles | Ancient stone or ice bridge with missing edge slabs and holes along the sides, forcing precise center-line driving at speed. |
-| **Hazard Floor Basin (Lava / Acid)** (`hazard_pit`) | Hazards & Obstacles | Wide glowing floor hazard down the center or edges that overheats engines or slows pods hovering over it, forcing drivers onto narrow raised perimeter ledges. |
-| **Energy Gate Chicane** (`energy_gates`) | Hazards & Obstacles | Sci-fi pylon gates with narrow horizontal or alternating open/closed energy apertures that require tight lateral or vertical threading. |
-| **Wreckage / Debris Field** (`debris_field`) | Hazards & Obstacles | Denser field of low-to-medium boulders or podracer wreckage (smaller than `pillar_slalom`) that players must weave through or skim over. |
-| **Deep Silt / Quicksand Trench** (`silt_trench`) | Surface & Physics Modifiers | High-drag off-line surface (typically on corner outsides or shortcuts) that bogs pods down unless they hold boost or stay on the firm racing groove. |
-| **Off-Camber Curve** (`off_camber`) | Surface & Physics Modifiers | Treacherous turn banked *away* from the apex (`-6°` to `-12°`), pulling pods outward and testing braking and drift control. |
-| **Washboard / Whoops Section** (`whoops_section`) | Surface & Physics Modifiers | High-frequency rhythmic terrain ripples (much shorter wavelength than `sand_dunes`) that reward hitting the right speed to skim across the crests. |
-| **Shallow Water / Meltwater Ford** (`water_ford`) | Surface & Physics Modifiers | Shallow river crossing with spray effects and slight drag that rapidly cools overheated engines in exchange for a small speed dip. |
-| **Asymmetric Risk/Reward Fork** (`asymmetric_fork`) | Layout, Route Choice & Flow | Branching split where one route is a tight, technical shortcut (e.g., narrow cave or boost ledge) and the other is a wider, forgiving main canyon. |
-| **Helical Spiral Ramp** (`spiral_helix`) | Layout, Route Choice & Flow | Sustained `270°–360°` curving climb or descent corkscrewing around a canyon spire or skyway tower. |
-| **Double-Apex Sweeper** (`double_apex`) | Layout, Route Choice & Flow | Extra-long curving basin with two distinct apexes separated by a short straightening kink, rewarding disciplined late-apex lines. |
-| **Funnel / Bottleneck Entry** (`funnel_squeeze`) | Layout, Route Choice & Flow | Rapid narrowing from an ultra-wide basin (`50m+`) down to a tight `18m–20m` gate, creating high-speed line-selection pressure. |
-| **Natural Rock Arch Sequence** (`rock_arch_sequence`) | Layout, Route Choice & Flow | Rapid series of open-air stone or ice arches spanning the canyon, giving dramatic light/shadow strobing and speed sensation without full cave darkness. |
+| **Big Height Difference / Chasm Plunge** | Major vertical drops (`22m–44m` per drop) combining `jump_lip` or `cliff_drop` with `chasm_floor` and `landing_slope`. | Dustveil Gorge, Crimson Rift, Frostspire Glacier, Zenith Skyway, Sunscorch Labyrinth, Glacial U-Trough, Amber Mesa Fork, Gale-Force Spire, Widowmaker Spire, Great Rift Odyssey, Subzero Crevasse, Trans-Planetary Crucible |
+| **Sheer Cliff Drop** (`cliff_drop`) | Level cliff edge with warning pylons that drops vertically (`42m–44m`) into a deep basin. | Dustveil Gorge, Crimson Rift, Widowmaker Spire, Great Rift Odyssey, Subzero Crevasse, Trans-Planetary Crucible |
+| **Two-Tier Split Terrace** (`split_terrace`) | Extra-wide (`56m`) divided section where the left half climbs along a gradual slope up to `+24m` above the right half and ends in a drop. | Zenith Skyway, Twin-Span Viaduct, Skyfall Ruined Viaduct, Colossus Sky Grand Prix |
+| **200m Obstacle Slalom Arena** (`pillar_slalom`) | Ultra-wide (`200m`) basin filled with staggered rock outcrops to slalom through, plus huge optional launch ramps. | Sunscorch Labyrinth, Great Rift Odyssey, Trans-Planetary Crucible |
+| **Half-Track Rock Barrier** (`half_rock_left` / `half_rock_right`) | Giant jagged rock blocking either the left or right half of the track; can be chained for high-speed slaloms. | Dustveil Gorge, Crimson Rift, Sulfur Acid Caldera, Great Rift Odyssey, Trans-Planetary Crucible |
+| **Sharp Turn / Hairpin** | Tight direction-reversing bends with heavy banking (`14°–18°`), often inside caverns or technical sectors. | Dustveil Gorge, Crimson Rift, Frostspire Glacier, Sunscorch Labyrinth, Twin-Span Viaduct, Shattered Shale Run, Widowmaker Spire, Pod Graveyard Gauntlet, Trans-Planetary Crucible |
+| **S-Bend / Slalom** | Rapidly alternating left/right banked turns (`10°–16°` reversals). | Dustveil Gorge, Frostspire Glacier, Zenith Skyway, Glacial U-Trough, Copperhead Badlands, Ion Conduit Ring, Colossus Sky Grand Prix |
+| **Middle Track Height Divider** (`ridge_split`) | Raised central rock spine splitting the track into two parallel channels (`32–36m` total width). | Crimson Rift, Amber Mesa Fork, Cinder Velodrome, Great Rift Odyssey, Trans-Planetary Crucible |
+| **Enclosed Cavern** (`cave`) | Pitch-dark roofed rock/ice/geode tunnel with dim crystal glints and ceiling collision. | Dustveil Gorge, Crimson Rift, Frostspire Glacier, Sunscorch Labyrinth, Glacial U-Trough, Twin-Span Viaduct, Great Rift Odyssey, Obsidian Vortex, Trans-Planetary Crucible |
+| **Jumpy Section — Rolling Dunes** (`sand_dunes`) | Sinusoidal wave-shaped terrain floor creating rhythmic vertical bumps. | Sunscorch Labyrinth, Oasis Mirage Circuit, Amber Mesa Fork, Great Rift Odyssey |
+| **Jumpy Section — Rough Scree** (`rough_scree`) | Jagged, uneven boulder-strewn floor with high surface noise and extra drag. | Amber Mesa Fork, Cinder Velodrome, Shattered Shale Run, Great Rift Odyssey, Pod Graveyard Gauntlet, Trans-Planetary Crucible |
+| **Steep Downhill Speed Chute** | Long, steep downward slope (`26m–40m+` descent) that builds raw speed via gravity before jumps or finish sprints. | Frostspire Glacier, Zenith Skyway, Sunscorch Labyrinth, Glacial U-Trough, Gale-Force Spire, Widowmaker Spire, Great Rift Odyssey, Colossus Sky Grand Prix, Trans-Planetary Crucible |
+| **Elevated Skyway / Bridge Deck** (`bridge_deck`) | Flat suspended causeway with low outer curbs, warning pylons, and open drop-offs. | Zenith Skyway, Cloudspan Causeway, Gale-Force Spire, Skyfall Ruined Viaduct, Colossus Sky Grand Prix |
+| **Banked Canyon Berm** | Angled track floor (`6°–18°` banking) for carrying speed through curves. | Appears across all 25 maps |
+| **Narrow Technical Squeeze** | Tight `19–22m` canyon width sections demanding crisp line discipline. | Dustveil Gorge, Crimson Rift, Frostspire Glacier, Sunscorch Labyrinth, Copperhead Badlands, Shattered Shale Run, Sulfur Acid Caldera, Pod Graveyard Gauntlet, Subzero Crevasse, Trans-Planetary Crucible |
+| **Finish Basin** (`finish_basin`) | Widened (`28–34m`) final stretch (or Start/Finish straight on loop circuits). | Appears across all 25 maps |
+| **Half-Pipe / U-Trough** (`half_pipe`) | Deep concave U-shaped channel where high-speed pods can ride high up the curved walls to set up corner entries. | Sunstone Arches, Oasis Mirage Circuit, Glacial U-Trough, Ion Conduit Ring, Great Rift Odyssey |
+| **Wallride Bowl** (`wallride_bowl`) | Extreme sweeping outer wallride stadium bowl with enhanced lateral grip for full-throttle cornering. | Cinder Velodrome, Gale-Force Spire, Ion Conduit Ring, Obsidian Vortex, Colossus Sky Grand Prix, Trans-Planetary Crucible |
+| **Stepped Cascade** (`stepped_cascade`) | Series of 4 rapid terrace drops where fast pods clear multiple steps in one jump while slower pods hop step-by-step. | Glacial U-Trough, Cinder Velodrome, Shattered Shale Run, Great Rift Odyssey, Subzero Crevasse, Trans-Planetary Crucible |
+| **True Void Gap Jump** (`void_gap`) | Broken span or split cliff with an `-82m` bottomless abyss underneath, requiring enough speed to clear onto the landing deck. | Widowmaker Spire, Skyfall Ruined Viaduct, Obsidian Vortex, Subzero Crevasse, Colossus Sky Grand Prix, Trans-Planetary Crucible |
+| **Double-Decker / Over-Under** (`double_decker`) | Stacked two-level viaduct with an entry ramp onto a fast elevated upper deck running directly above the wider lower floor. | Twin-Span Viaduct, Ion Conduit Ring, Great Rift Odyssey, Obsidian Vortex, Colossus Sky Grand Prix, Trans-Planetary Crucible |
+| **Tabletop Plateau Jump** (`tabletop_jump`) | Smooth launch ramp onto an `+8.5m` elevated flat mesa plateau followed by a down-ramp. | Sunstone Arches, Oasis Mirage Circuit, Cloudspan Causeway, Copperhead Badlands, Great Rift Odyssey |
+| **Stalactite / Low-Clearance Ceiling** (`stalactite_corridor`) | Low-roofed cavern studded with hanging rock/icicle cones that punish high jumps and force flat driving. | Shattered Shale Run, Sulfur Acid Caldera, Great Rift Odyssey, Pod Graveyard Gauntlet, Subzero Crevasse, Trans-Planetary Crucible |
+| **Crosswind Gust Zone** (`crosswind_zone`) | Exposed ridge with visible wind-streak ribbons that push pods laterally, requiring active counter-steering. | Gale-Force Spire, Great Rift Odyssey, Skyfall Ruined Viaduct, Colossus Sky Grand Prix, Trans-Planetary Crucible |
+| **Crumbling Bridge Deck** (`crumbling_bridge`) | Ancient stone or ice causeway with missing outer slabs that drop into the abyss if pods drift off the center spine. | Sulfur Acid Caldera, Skyfall Ruined Viaduct, Subzero Crevasse, Trans-Planetary Crucible |
+| **Hazard Floor Basin (Lava / Acid)** (`hazard_pit`) | Glowing molten lava or caustic acid central pool that scorches hull and heats engines, forcing drivers onto raised perimeter ledges. | Sulfur Acid Caldera, Widowmaker Spire, Obsidian Vortex, Trans-Planetary Crucible |
+| **Energy Gate Chicane** (`energy_gates`) | Sci-fi pylon frames with alternating plasma barrier beams and green safe apertures for high-speed lateral threading. | Ion Conduit Ring, Skyfall Ruined Viaduct, Obsidian Vortex, Colossus Sky Grand Prix, Trans-Planetary Crucible |
+| **Wreckage / Debris Field** (`debris_field`) | Scattered boulders and scorched podracer turbine wreckage that players weave between or hop over. | Copperhead Badlands, Great Rift Odyssey, Pod Graveyard Gauntlet, Trans-Planetary Crucible |
+| **Deep Silt / Quicksand Trench** (`silt_trench`) | High-drag quicksand basin traversed by a narrow weaving firm stone ribbon that rewards precise line tracking. | Copperhead Badlands, Sulfur Acid Caldera, Great Rift Odyssey, Pod Graveyard Gauntlet |
+| **Off-Camber Curve** (`off_camber`) | Crowned slick shale curve banked *away* from the turn apex (`±8°–12°`), pulling pods outward. | Shattered Shale Run, Widowmaker Spire, Pod Graveyard Gauntlet, Subzero Crevasse, Trans-Planetary Crucible |
+| **Washboard / Whoops Section** (`whoops_section`) | High-frequency rhythmic terrain ripples that reward hitting top speed to skim across the crests. | Amber Mesa Fork, Copperhead Badlands, Great Rift Odyssey, Pod Graveyard Gauntlet |
+| **Shallow Water / Meltwater Ford** (`water_ford`) | Shimmering shallow river crossing with slight water drag that rapidly cools both engines (`-26%/s`). | Sunstone Arches, Oasis Mirage Circuit, Glacial U-Trough, Twin-Span Viaduct, Shattered Shale Run, Great Rift Odyssey |
+| **Asymmetric Risk/Reward Fork** (`asymmetric_fork`) | Wide split canyon divided by an off-center rock spine into a tight, fast left groove and a wide, forgiving right channel. | Amber Mesa Fork, Twin-Span Viaduct, Great Rift Odyssey, Subzero Crevasse |
+| **Helical Spiral Ramp** (`spiral_helix`) | Sustained corkscrewing causeway climbing or descending around a central canyon spire or skyway tower. | Gale-Force Spire, Widowmaker Spire, Obsidian Vortex, Colossus Sky Grand Prix, Trans-Planetary Crucible |
+| **Double-Apex Sweeper** (`double_apex`) | Long curving basin with striped racing kerbs and two distinct apexes separated by a short straightening kink. | Oasis Mirage Circuit, Cloudspan Causeway, Cinder Velodrome, Colossus Sky Grand Prix |
+| **Funnel / Bottleneck Entry** (`funnel_squeeze`) | Rapid chevron-marked narrowing from an ultra-wide plaza (`54–58m`) down to a tight `19–24m` gate. | Cloudspan Causeway, Copperhead Badlands, Ion Conduit Ring, Pod Graveyard Gauntlet |
+| **Natural Rock Arch Sequence** (`rock_arch_sequence`) | Series of open-air stone arches spanning the canyon, casting rhythmic sunlight and shadow stripes across the floor. | Sunstone Arches, Cloudspan Causeway, Twin-Span Viaduct, Great Rift Odyssey |
