@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PodMania — Twin-Engine Podracer Time Trial</title>
+    <style>
+      :root {
+        --bg-panel: rgba(11, 16, 24, 0.78);
+        --border-panel: rgba(255, 255, 255, 0.14);
+        --accent-cyan: #38bdf8;
+        --accent-amber: #f59e0b;
+        --accent-gold: #fbbf24;
+        --accent-silver: #cbd5e1;
+        --accent-bronze: #d97706;
+        --accent-green: #34d399;
+        --accent-red: #f87171;
+        --text-main: #f8fafc;
+        --text-muted: #94a3b8;
+      }
+
+      * {
+        box-sizing: border-box;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0b1018;
+        color: var(--text-main);
+        font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      }
+
+      #app {
+        position: relative;
+        width: 100%;
+        height: 100%;
+      }
+
+      canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .hidden {
+        display: none !important;
+      }
+
+      /* HUD Overlay */
+      #hud {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 18px 22px;
+      }
+
+      .hud-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+      }
+
+      .panel {
+        background: var(--bg-panel);
+        border: 1px solid var(--border-panel);
+        backdrop-filter: blur(8px);
+        border-radius: 10px;
+        padding: 10px 14px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      }
+
+      .hud-left-info {
+        min-width: 190px;
+      }
+
+      .map-title-tag {
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: var(--accent-amber);
+        font-weight: 700;
+      }
+
+      .controls-mini {
+        margin-top: 6px;
+        font-size: 11px;
+        color: var(--text-muted);
+        line-height: 1.45;
+      }
+
+      .controls-mini kbd {
+        display: inline-block;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: var(--text-main);
+        font-family: monospace;
+        font-size: 10px;
+      }
+
+      .hud-timer-box {
+        text-align: center;
+        min-width: 240px;
+        padding: 10px 22px;
+      }
+
+      .timer-value {
+        font-variant-numeric: tabular-nums;
+        font-size: 36px;
+        font-weight: 800;
+        letter-spacing: 0.03em;
+        line-height: 1.05;
+      }
+
+      .cp-row {
+        margin-top: 4px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 12px;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+      }
+
+      .split-pill {
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-variant-numeric: tabular-nums;
+        font-size: 13px;
+        font-weight: 800;
+      }
+
+      .split-ahead {
+        background: rgba(52, 211, 153, 0.2);
+        color: var(--accent-green);
+        border: 1px solid rgba(52, 211, 153, 0.45);
+      }
+
+      .split-behind {
+        background: rgba(248, 113, 113, 0.2);
+        color: var(--accent-red);
+        border: 1px solid rgba(248, 113, 113, 0.45);
+      }
+
+      .hud-right-box {
+        min-width: 215px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .medal-targets {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 3px 12px;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .medal-label-gold { color: var(--accent-gold); font-weight: 700; }
+      .medal-label-silver { color: var(--accent-silver); font-weight: 700; }
+      .medal-label-bronze { color: var(--accent-bronze); font-weight: 700; }
+      .medal-label-pb { color: var(--accent-cyan); font-weight: 700; }
+
+      .hull-section {
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        padding-top: 7px;
+      }
+
+      .bar-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 4px;
+      }
+
+      .bar-track {
+        width: 100%;
+        height: 9px;
+        background: rgba(255, 255, 255, 0.1);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+
+      .bar-fill {
+        height: 100%;
+        width: 100%;
+        border-radius: 999px;
+        transition: width 0.08s linear, background-color 0.15s ease;
+      }
+
+      .hull-low {
+        animation: pulseWarn 0.55s infinite alternate;
+      }
+
+      @keyframes pulseWarn {
+        from { opacity: 1; }
+        to { opacity: 0.45; }
+      }
+
+      /* Center Banners (Countdown / Damp / Wrecked) */
+      .hud-center-alerts {
+        position: absolute;
+        top: 34%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .countdown-text {
+        font-size: 84px;
+        font-weight: 900;
+        letter-spacing: 0.06em;
+        text-shadow: 0 6px 28px rgba(0, 0, 0, 0.65);
+        color: var(--accent-amber);
+      }
+
+      .event-badge {
+        padding: 7px 18px;
+        border-radius: 999px;
+        font-size: 15px;
+        font-weight: 800;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+      }
+
+      .badge-damp-prompt {
+        background: rgba(56, 189, 248, 0.25);
+        border: 2px solid var(--accent-cyan);
+        color: #e0f2fe;
+        animation: pulseWarn 0.3s infinite alternate;
+      }
+
+      .badge-perfect-damp {
+        background: rgba(52, 211, 153, 0.28);
+        border: 2px solid var(--accent-green);
+        color: #ecfdf5;
+      }
+
+      .badge-hard-impact {
+        background: rgba(248, 113, 113, 0.28);
+        border: 2px solid var(--accent-red);
+        color: #fef2f2;
+      }
+
+      /* Bottom Telemetry Cluster */
+      .hud-bottom {
+        display: flex;
+        justify-content: center;
+        align-items: flex-end;
+      }
+
+      .telemetry-cluster {
+        display: flex;
+        align-items: flex-end;
+        gap: 14px;
+        padding: 12px 16px;
+      }
+
+      .engine-widget {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: 210px;
+      }
+
+      .engine-header {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.09em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+      }
+
+      .key-row {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 5px;
+      }
+
+      .keycap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 5px 2px;
+        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.06);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        font-size: 13px;
+        font-weight: 800;
+        transition: transform 0.06s ease, background-color 0.08s ease, border-color 0.08s ease;
+      }
+
+      .keycap span {
+        font-size: 9px;
+        font-weight: 600;
+        color: var(--text-muted);
+        margin-top: 1px;
+      }
+
+      .keycap.active-pos {
+        background: rgba(245, 158, 11, 0.35);
+        border-color: var(--accent-amber);
+        color: #fff;
+        transform: translateY(-2px);
+      }
+
+      .keycap.active-pos span {
+        color: #fef3c7;
+      }
+
+      .keycap.active-rev {
+        background: rgba(248, 113, 113, 0.35);
+        border-color: var(--accent-red);
+        color: #fff;
+        transform: translateY(-2px);
+      }
+
+      .keycap.active-rev span {
+        color: #fee2e2;
+      }
+
+      .thrust-bar-track {
+        height: 6px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+      }
+
+      .thrust-bar-fill {
+        height: 100%;
+        width: 0%;
+        background: linear-gradient(90deg, #f59e0b, #38bdf8);
+        transition: width 0.04s linear;
+      }
+
+      .speed-damper-center {
+        width: 176px;
+        text-align: center;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .speed-value {
+        font-variant-numeric: tabular-nums;
+        font-size: 38px;
+        font-weight: 900;
+        line-height: 1;
+      }
+
+      .speed-unit {
+        font-size: 11px;
+        letter-spacing: 0.14em;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        margin-top: -3px;
+      }
+
+      /* Fullscreen Overlays (Menu / Pause / Finish / Wrecked) */
+      .overlay-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(7, 11, 18, 0.72);
+        backdrop-filter: blur(10px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        z-index: 20;
+      }
+
+      .modal-card {
+        width: 100%;
+        max-width: 780px;
+        background: rgba(13, 19, 30, 0.94);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 16px;
+        padding: 28px 32px;
+        box-shadow: 0 24px 64px rgba(0, 0, 0, 0.65);
+      }
+
+      .brand-title {
+        font-size: 38px;
+        font-weight: 900;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin: 0;
+        background: linear-gradient(90deg, #fbbf24, #f97316, #38bdf8);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .brand-sub {
+        margin: 6px 0 20px;
+        color: var(--text-muted);
+        font-size: 14px;
+      }
+
+      .map-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+        margin-bottom: 20px;
+      }
+
+      .map-card {
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        border-radius: 12px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .map-card.selected-playable {
+        border-color: rgba(245, 158, 11, 0.65);
+        background: rgba(245, 158, 11, 0.08);
+      }
+
+      .map-card.locked {
+        opacity: 0.62;
+      }
+
+      .map-card h3 {
+        margin: 0;
+        font-size: 18px;
+      }
+
+      .map-card p {
+        margin: 4px 0 0;
+        font-size: 13px;
+        color: var(--text-muted);
+        line-height: 1.45;
+      }
+
+      .map-stats {
+        font-size: 12px;
+        color: var(--text-muted);
+        font-variant-numeric: tabular-nums;
+        display: flex;
+        justify-content: space-between;
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        padding-top: 8px;
+      }
+
+      .btn {
+        cursor: pointer;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 18px;
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        transition: transform 0.08s ease, filter 0.12s ease;
+      }
+
+      .btn:hover:not(:disabled) {
+        filter: brightness(1.1);
+        transform: translateY(-1px);
+      }
+
+      .btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+      }
+
+      .btn-primary {
+        background: linear-gradient(135deg, #f59e0b, #ea580c);
+        color: #fff;
+      }
+
+      .btn-secondary {
+        background: rgba(255, 255, 255, 0.12);
+        color: var(--text-main);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+      }
+
+      .controls-guide {
+        background: rgba(0, 0, 0, 0.28);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 10px;
+        padding: 12px 16px;
+        font-size: 12.5px;
+        color: var(--text-muted);
+        line-height: 1.6;
+      }
+
+      .controls-guide strong {
+        color: var(--text-main);
+      }
+
+      .unlock-banner {
+        margin: 14px 0;
+        padding: 12px 16px;
+        border-radius: 10px;
+        background: rgba(251, 191, 36, 0.16);
+        border: 1px solid var(--accent-gold);
+        color: #fef3c7;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .finish-stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 12px;
+        margin: 18px 0;
+      }
+
+      .stat-box {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        padding: 12px;
+        text-align: center;
+      }
+
+      .stat-label {
+        font-size: 11px;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.09em;
+      }
+
+      .stat-val {
+        margin-top: 4px;
+        font-size: 24px;
+        font-weight: 900;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 10px;
+        margin-top: 18px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <div id="hud" class="hidden">
+        <div class="hud-top">
+          <div class="panel hud-left-info">
+            <div class="map-title-tag" id="hud-map-name">Dustveil Gorge</div>
+            <div class="controls-mini">
+              <div><kbd>Backspace</kbd> Last CP &nbsp; <kbd>R</kbd> Restart</div>
+              <div><kbd>Esc</kbd> Menu &nbsp; <kbd>M</kbd> Mute</div>
+            </div>
+          </div>
+
+          <div class="panel hud-timer-box">
+            <div class="timer-value" id="hud-timer">00:00.000</div>
+            <div class="cp-row">
+              <span id="hud-cp-progress">CP 0 / 5</span>
+              <span id="hud-split-pill" class="split-pill hidden">+0.000s</span>
+            </div>
+          </div>
+
+          <div class="panel hud-right-box">
+            <div class="medal-targets">
+              <span class="medal-label-gold">GOLD</span>
+              <span id="hud-target-gold">00:52.000</span>
+              <span class="medal-label-silver">SILVER</span>
+              <span id="hud-target-silver">01:01.000</span>
+              <span class="medal-label-bronze">BRONZE</span>
+              <span id="hud-target-bronze">01:15.000</span>
+              <span class="medal-label-pb">BEST</span>
+              <span id="hud-target-pb">--:--.---</span>
+            </div>
+            <div class="hull-section">
+              <div class="bar-header">
+                <span>Hull Integrity</span>
+                <span id="hud-hull-pct">100%</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill" id="hud-hull-bar" style="width: 100%; background: #38bdf8;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="hud-center-alerts">
+          <div id="hud-countdown" class="countdown-text hidden">3</div>
+          <div id="hud-event-badge" class="event-badge hidden"></div>
+        </div>
+
+        <div class="hud-bottom">
+          <div class="panel telemetry-cluster">
+            <div class="engine-widget">
+              <div class="engine-header">
+                <span>Left Engine</span>
+                <span id="hud-left-pct">0%</span>
+              </div>
+              <div class="key-row" id="hud-left-keys">
+                <div class="keycap" data-code="KeyA">A<span>-30%</span></div>
+                <div class="keycap" data-code="KeyS">S<span>30%</span></div>
+                <div class="keycap" data-code="KeyD">D<span>70%</span></div>
+                <div class="keycap" data-code="KeyF">F<span>100%</span></div>
+              </div>
+              <div class="thrust-bar-track">
+                <div class="thrust-bar-fill" id="hud-left-bar"></div>
+              </div>
+            </div>
+
+            <div class="speed-damper-center">
+              <div class="speed-value" id="hud-speed">0</div>
+              <div class="speed-unit">KM/H</div>
+              <div class="bar-header" style="margin-top: 2px;">
+                <span>Damper [SPACE]</span>
+                <span id="hud-damper-pct">100%</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill" id="hud-damper-bar" style="width: 100%; background: #38bdf8;"></div>
+              </div>
+            </div>
+
+            <div class="engine-widget">
+              <div class="engine-header">
+                <span id="hud-right-pct">0%</span>
+                <span>Right Engine</span>
+              </div>
+              <div class="key-row" id="hud-right-keys">
+                <div class="keycap" data-code="KeyK">K<span>100%</span></div>
+                <div class="keycap" data-code="KeyL">L<span>70%</span></div>
+                <div class="keycap" data-code="Semicolon">;<span>30%</span></div>
+                <div class="keycap" data-code="Quote">'<span>-30%</span></div>
+              </div>
+              <div class="thrust-bar-track">
+                <div class="thrust-bar-fill" id="hud-right-bar"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Menu / Map Select -->
+      <div id="menu-overlay" class="overlay-backdrop">
+        <div class="modal-card">
+          <h1 class="brand-title">PodMania</h1>
+          <p class="brand-sub">Twin-turbine podracer time trials across pure dirt canyons, caves &amp; chasm jumps.</p>
+          <div class="map-grid" id="map-grid"></div>
+          <div class="controls-guide">
+            <div><strong>Left Engine:</strong> <kbd>A</kbd> -30% &nbsp; <kbd>S</kbd> 30% &nbsp; <kbd>D</kbd> 70% &nbsp; <kbd>F</kbd> 100% &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Right Engine:</strong> <kbd>K</kbd> 100% &nbsp; <kbd>L</kbd> 70% &nbsp; <kbd>;</kbd> 30% &nbsp; <kbd>'</kbd> -30%</div>
+            <div><strong>Damping Thruster:</strong> Hold <kbd>SPACE</kbd> right before landing big jumps to absorb impact without hull damage. &nbsp; <strong><kbd>Backspace</kbd>:</strong> Last Checkpoint &nbsp; <strong><kbd>R</kbd>:</strong> Restart</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pause Overlay -->
+      <div id="pause-overlay" class="overlay-backdrop hidden">
+        <div class="modal-card" style="max-width: 440px; text-align: center;">
+          <h2 style="margin-top: 0;">Run Paused</h2>
+          <div class="modal-actions" style="justify-content: center;">
+            <button class="btn btn-primary" id="btn-resume">Resume</button>
+            <button class="btn btn-secondary" id="btn-pause-restart">Restart (R)</button>
+            <button class="btn btn-secondary" id="btn-pause-menu">Map Select</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Wrecked Overlay -->
+      <div id="wrecked-overlay" class="overlay-backdrop hidden">
+        <div class="modal-card" style="max-width: 460px; text-align: center;">
+          <h2 style="margin-top: 0; color: var(--accent-red);">POD WRECKED</h2>
+          <p style="color: var(--text-muted); font-size: 14px;">Hull integrity reached 0% from heavy impact. Time your <strong>SPACE</strong> damping thruster before touchdown!</p>
+          <div class="modal-actions" style="justify-content: center;">
+            <button class="btn btn-primary" id="btn-wreck-respawn">Respawn CP (Backspace)</button>
+            <button class="btn btn-secondary" id="btn-wreck-restart">Restart Run (R)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Finish Overlay -->
+      <div id="finish-overlay" class="overlay-backdrop hidden">
+        <div class="modal-card" style="max-width: 560px;">
+          <h2 style="margin: 0;" id="finish-title">Run Complete</h2>
+          <div id="finish-unlock-banner" class="unlock-banner hidden">NEXT MAP UNLOCKED!</div>
+          <div class="finish-stats-grid">
+            <div class="stat-box">
+              <div class="stat-label">Time</div>
+              <div class="stat-val" id="finish-time">00:00.000</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Medal</div>
+              <div class="stat-val" id="finish-medal">NONE</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-label">Score</div>
+              <div class="stat-val" id="finish-score">0</div>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn btn-secondary" id="btn-finish-menu">Map Select</button>
+            <button class="btn btn-primary" id="btn-finish-retry">Race Again (R)</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
