@@ -157,6 +157,15 @@ export type LandingEventKind =
   | 'hard_impact'
   | 'wall_scrape';
 
+export interface EngineMotionOffset {
+  x: number;
+  y: number;
+  z: number;
+  pitch: number;
+  yaw: number;
+  roll: number;
+}
+
 export interface PodTelemetry {
   pos: THREE.Vector3;
   vel: THREE.Vector3;
@@ -195,6 +204,8 @@ export interface PodTelemetry {
   cockpitLongOffset: number;
   cockpitLatVel: number;
   cockpitVertVel: number;
+  engineLeftOffset: EngineMotionOffset;
+  engineRightOffset: EngineMotionOffset;
   lastLandingEvent: LandingEventKind;
   lastLandingDamage: number;
   lastLandingBoostKmh: number;

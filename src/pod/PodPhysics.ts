@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type {
+  EngineMotionOffset,
   InputSnapshot,
   PodModificationId,
   PodTelemetry,
@@ -33,6 +34,24 @@ export class PodPhysics {
   private prevPitch = 0;
   private prevFwdSpeed = 0;
   private prevLatSpeed = 0;
+  private prevPLeft = 0;
+  private prevPRight = 0;
+  private readonly engineLeftVel: EngineMotionOffset = {
+    x: 0,
+    y: 0,
+    z: 0,
+    pitch: 0,
+    yaw: 0,
+    roll: 0,
+  };
+  private readonly engineRightVel: EngineMotionOffset = {
+    x: 0,
+    y: 0,
+    z: 0,
+    pitch: 0,
+    yaw: 0,
+    roll: 0,
+  };
 
   // Per-jump sequence tracking
   private flareWindowPeakMinThrust = 0;
@@ -94,6 +113,8 @@ export class PodPhysics {
       cockpitLongOffset: 0,
       cockpitLatVel: 0,
       cockpitVertVel: 0,
+      engineLeftOffset: { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 },
+      engineRightOffset: { x: 0, y: 0, z: 0, pitch: 0, yaw: 0, roll: 0 },
       lastLandingEvent: 'none',
       lastLandingDamage: 0,
       lastLandingBoostKmh: 0,
@@ -160,6 +181,10 @@ export class PodPhysics {
     s.cockpitLongOffset = 0;
     s.cockpitLatVel = 0;
     s.cockpitVertVel = 0;
+    this.resetEngineMotion(s.engineLeftOffset);
+    this.resetEngineMotion(s.engineRightOffset);
+    this.resetEngineMotion(this.engineLeftVel);
+    this.resetEngineMotion(this.engineRightVel);
     s.lastLandingEvent = 'none';
     s.lastLandingDamage = 0;
     s.lastLandingBoostKmh = 0;
@@ -186,6 +211,8 @@ export class PodPhysics {
     this.prevPitch = pitch;
     this.prevFwdSpeed = 0;
     this.prevLatSpeed = 0;
+    this.prevPLeft = 0;
+    this.prevPRight = 0;
 
     this.flareWindowPeakMinThrust = 0;
     this.peakAirImpactSpeed = 0;
@@ -1036,6 +1063,63 @@ export class PodPhysics {
     s.cockpitLatVel = this.cockpitLatVel;
     s.cockpitVertVel = this.cockpitVertVel;
 
+    // 9. Independent Twin-Engine Elastic Hover & Surge Motion (~50% of cabin dangle)
+    const dPLeft = THREE.MathUtils.clamp((s.pLeft - this.prevPLeft) / dt, -15, 15);
+    const dPRight = THREE.MathUtils.clamp((s.pRight - this.prevPRight) / dt, -15, 15);
+    this.prevPLeft = s.pLeft;
+    this.prevPRight = s.pRight;
+
+    const leftTerrainDelta = pL.found
+      ? THREE.MathUtils.clamp(pL.groundY - avgGroundY, -0.7, 0.7)
+      : 0;
+    const rightTerrainDelta = pR.found
+      ? THREE.MathUtils.clamp(pR.groundY - avgGroundY, -0.7, 0.7)
+      : 0;
+
+    const engSharedLat = 0.38 * Math.tanh(rawLatForce / 1.35);
+    const binderSpreadBase =
+      0.045 * avgFwdPower +
+      0.065 * s.landingBoost +
+      (s.nitroActive ? 0.065 : 0);
+    const minEngY = Math.max(-0.42, -(s.clearance - 0.55));
+
+    this.stepSingleEngineMotion(
+      s.engineLeftOffset,
+      this.engineLeftVel,
+      -1,
+      s.pLeft,
+      s.pRight,
+      dPLeft,
+      leftTerrainDelta,
+      engSharedLat,
+      binderSpreadBase,
+      gravitySag,
+      airFloat,
+      vertAccel,
+      fwdAccel,
+      angAccel,
+      minEngY,
+      dt
+    );
+    this.stepSingleEngineMotion(
+      s.engineRightOffset,
+      this.engineRightVel,
+      1,
+      s.pRight,
+      s.pLeft,
+      dPRight,
+      rightTerrainDelta,
+      engSharedLat,
+      binderSpreadBase,
+      gravitySag,
+      airFloat,
+      vertAccel,
+      fwdAccel,
+      angAccel,
+      minEngY,
+      dt
+    );
+
     s.speedMs = s.vel.length();
     s.speedKmh = s.speedMs * 3.6;
 
@@ -1054,6 +1138,133 @@ export class PodPhysics {
       info.pLeftAtWreck = pLeftBefore;
       info.pRightAtWreck = pRightBefore;
     }
+  }
+
+  private resetEngineMotion(m: EngineMotionOffset): void {
+    m.x = 0;
+    m.y = 0;
+    m.z = 0;
+    m.pitch = 0;
+    m.yaw = 0;
+    m.roll = 0;
+  }
+
+  private stepSingleEngineMotion(
+    off: EngineMotionOffset,
+    vel: EngineMotionOffset,
+    side: -1 | 1,
+    sidePower: number,
+    otherPower: number,
+    dPSide: number,
+    terrainDelta: number,
+    sharedLat: number,
+    binderSpreadBase: number,
+    gravitySag: number,
+    airFloat: number,
+    vertAccel: number,
+    fwdAccel: number,
+    angAccel: number,
+    minY: number,
+    dt: number
+  ): void {
+    const s = this.state;
+    const reverseKick = sidePower < -0.05 ? 1 : 0;
+
+    // Lateral sway + plasma binder breathing
+    const targetX = THREE.MathUtils.clamp(
+      sharedLat + side * (binderSpreadBase - reverseKick * 0.045),
+      -0.42,
+      0.42
+    );
+    const wX = 5.6;
+    const zX = s.isGrounded ? 0.38 : 0.3;
+    vel.x += (wX * wX * (targetX - off.x) - 2 * zX * wX * vel.x) * dt;
+    off.x = THREE.MathUtils.clamp(off.x + vel.x * dt, -0.44, 0.44);
+
+    // Independent vertical hover bob, per-side terrain tracking & landing bounce (~50% of cabin)
+    const targetY = THREE.MathUtils.clamp(
+      terrainDelta * 0.42 +
+        gravitySag * 0.38 +
+        airFloat * 0.52 -
+        vertAccel * 0.0065 +
+        this.pitchVel * 0.18 +
+        Math.max(0, sidePower) * 0.08 -
+        reverseKick * 0.1,
+      -0.4,
+      0.44
+    );
+    const wY = s.isGrounded ? 5.6 : 4.1;
+    const zY = s.isGrounded ? 0.36 : 0.29;
+    vel.y += (wY * wY * (targetY - off.y) - 2 * zY * wY * vel.y) * dt;
+    off.y += vel.y * dt;
+    if (off.y < minY) {
+      off.y = minY;
+      if (vel.y < 0) vel.y *= -0.3;
+    } else if (off.y > 0.46) {
+      off.y = 0.46;
+      if (vel.y > 0) vel.y *= -0.25;
+    }
+
+    // Differential fore/aft thrust surge (-Z = engine pulling ahead on binder)
+    const targetZ = THREE.MathUtils.clamp(
+      -sidePower * 0.34 +
+        (otherPower - sidePower) * 0.12 -
+        s.landingBoost * 0.14 -
+        (s.nitroActive ? 0.12 : 0) -
+        fwdAccel * 0.0024 +
+        reverseKick * 0.14,
+      -0.46,
+      0.36
+    );
+    const wZ = 6.2;
+    const zZ = 0.4;
+    vel.z += (wZ * wZ * (targetZ - off.z) - 2 * zZ * wZ * vel.z) * dt;
+    off.z = THREE.MathUtils.clamp(off.z + vel.z * dt, -0.48, 0.38);
+
+    // Pitch: thrust vector kick, reverse airbrake nose-dip & vertical bounce pitch
+    const targetPitch = THREE.MathUtils.clamp(
+      sidePower * 0.085 -
+        reverseKick * 0.11 +
+        dPSide * 0.014 -
+        this.pitchVel * 0.15 -
+        vel.y * 0.032 -
+        off.y * 0.11,
+      -0.21,
+      0.22
+    );
+    const wP = 5.9;
+    const zP = 0.38;
+    vel.pitch += (wP * wP * (targetPitch - off.pitch) - 2 * zP * wP * vel.pitch) * dt;
+    off.pitch = THREE.MathUtils.clamp(off.pitch + vel.pitch * dt, -0.23, 0.24);
+
+    // Yaw: subtle cant/swivel into turns & asymmetric plasma-binder skew
+    const targetYaw = THREE.MathUtils.clamp(
+      s.omegaYaw * 0.12 +
+        angAccel * 0.015 -
+        side * (sidePower - otherPower) * 0.065 +
+        off.x * 0.14,
+      -0.22,
+      0.22
+    );
+    const wYaw = 6.1;
+    const zYaw = 0.38;
+    vel.yaw += (wYaw * wYaw * (targetYaw - off.yaw) - 2 * zYaw * wYaw * vel.yaw) * dt;
+    off.yaw = THREE.MathUtils.clamp(off.yaw + vel.yaw * dt, -0.24, 0.24);
+
+    // Roll: loose turbine roll lag, gyroscopic spool kick & terrain camber tilt
+    const targetRoll = THREE.MathUtils.clamp(
+      -s.roll * 0.16 -
+        this.rollVel * 0.085 +
+        off.x * 0.18 +
+        side * dPSide * 0.026 +
+        side * terrainDelta * 0.18,
+      -0.28,
+      0.28
+    );
+    const wRoll = 5.3;
+    const zRoll = 0.35;
+    vel.roll += (wRoll * wRoll * (targetRoll - off.roll) - 2 * zRoll * wRoll * vel.roll) * dt;
+    off.roll = THREE.MathUtils.clamp(off.roll + vel.roll * dt, -0.32, 0.32);
   }
 
   private resetAirSequenceTrackers(): void {

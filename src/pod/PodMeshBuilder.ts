@@ -247,6 +247,56 @@ export class PodMeshBuilder {
     const aeroBuffetRoll = Math.sin(elapsedTime * 14.9) * buffetScale * 1.1;
     const aeroBuffetPitch = Math.cos(elapsedTime * 16.1) * buffetScale * 0.65;
 
+    // Independent per-engine elastic motion (~50% of cabin dangle + out-of-phase hover float)
+    const engL = t.engineLeftOffset;
+    const engR = t.engineRightOffset;
+    const engIdleX_L =
+      (Math.sin(elapsedTime * 1.65 + 0.8) * 0.042 + Math.sin(elapsedTime * 3.1) * 0.012) *
+      idleWeight;
+    const engIdleY_L =
+      (Math.sin(elapsedTime * 2.35 + 1.9) * 0.036 + Math.cos(elapsedTime * 4.2) * 0.01) *
+      idleWeight;
+    const engIdleZ_L = Math.sin(elapsedTime * 1.9 + 0.4) * 0.025 * idleWeight;
+    const engIdleRoll_L = Math.cos(elapsedTime * 1.7 + 0.5) * 0.026 * idleWeight;
+    const engIdlePitch_L = Math.sin(elapsedTime * 2.05 + 2.2) * 0.016 * idleWeight;
+
+    const engIdleX_R =
+      (Math.sin(elapsedTime * 1.55 + 3.4) * 0.042 + Math.cos(elapsedTime * 2.95) * 0.012) *
+      idleWeight;
+    const engIdleY_R =
+      (Math.sin(elapsedTime * 2.25 + 4.5) * 0.036 + Math.sin(elapsedTime * 3.85) * 0.01) *
+      idleWeight;
+    const engIdleZ_R = Math.cos(elapsedTime * 1.8 + 2.1) * 0.025 * idleWeight;
+    const engIdleRoll_R = Math.sin(elapsedTime * 1.6 + 3.1) * 0.026 * idleWeight;
+    const engIdlePitch_R = Math.cos(elapsedTime * 1.95 + 0.7) * 0.016 * idleWeight;
+
+    const engBuffetL = buffetScale * 0.52;
+    const engBuffetR = buffetScale * 0.52;
+
+    this.leftEngine.root.position.set(
+      -1.35 + engL.x + engIdleX_L + Math.sin(elapsedTime * 19.1 + 0.5) * engBuffetL,
+      engL.y + engIdleY_L + Math.cos(elapsedTime * 23.3 + 1.2) * engBuffetL,
+      engL.z + engIdleZ_L
+    );
+    this.leftEngine.root.rotation.set(
+      engL.pitch + engIdlePitch_L + Math.cos(elapsedTime * 17.5) * engBuffetL * 0.65,
+      engL.yaw + engIdleX_L * 0.14,
+      engL.roll + engIdleRoll_L + Math.sin(elapsedTime * 15.8 + 0.9) * engBuffetL * 1.1,
+      'YXZ'
+    );
+
+    this.rightEngine.root.position.set(
+      1.35 + engR.x + engIdleX_R + Math.cos(elapsedTime * 18.4 + 2.1) * engBuffetR,
+      engR.y + engIdleY_R + Math.sin(elapsedTime * 22.7 + 3.0) * engBuffetR,
+      engR.z + engIdleZ_R
+    );
+    this.rightEngine.root.rotation.set(
+      engR.pitch + engIdlePitch_R + Math.sin(elapsedTime * 16.9 + 1.7) * engBuffetR * 0.65,
+      engR.yaw + engIdleX_R * 0.14,
+      engR.roll + engIdleRoll_R + Math.cos(elapsedTime * 15.2 + 2.4) * engBuffetR * 1.1,
+      'YXZ'
+    );
+
     this.cockpitGroup.position.set(
       t.cockpitLatOffset + idleSwayX + aeroBuffetX,
       0.85 + t.cockpitVertOffset + idleBobY + aeroBuffetY,
@@ -374,6 +424,8 @@ export class PodMeshBuilder {
       this.leftCable,
       this.tmpA,
       this.tmpB,
+      this.leftEngine.root.quaternion,
+      this.cockpitGroup.quaternion,
       t,
       t.pLeft,
       elapsedTime
@@ -385,6 +437,8 @@ export class PodMeshBuilder {
       this.rightCable,
       this.tmpA,
       this.tmpB,
+      this.rightEngine.root.quaternion,
+      this.cockpitGroup.quaternion,
       t,
       t.pRight,
       elapsedTime
@@ -800,6 +854,7 @@ export class PodMeshBuilder {
       },
     ];
     const root = new THREE.Group();
+    root.rotation.order = 'YXZ';
     root.position.set(xPos, 0, 0);
 
     // 1. Stepped cylindrical barrel (LatheGeometry rotated to align with Z: z=-3.1 to z=-0.1)
@@ -1852,6 +1907,8 @@ export class PodMeshBuilder {
     assembly: DetailedCableAssembly,
     start: THREE.Vector3,
     end: THREE.Vector3,
+    engineLocalQuat: THREE.Quaternion,
+    cockpitLocalQuat: THREE.Quaternion,
     t: PodTelemetry,
     sidePower: number,
     elapsedTime: number
@@ -1882,9 +1939,17 @@ export class PodMeshBuilder {
     const dist = Math.max(0.5, chord.length());
     chord.divideScalar(dist);
 
-    // Smoothly align exit & entry tangents with engine pylon (+Z) and cockpit shackle (-Z)
-    this.tmpExitDir.set(0, -0.04, 1).lerp(chord, 0.62).normalize();
-    this.tmpEntryDir.set(0, -0.02, -1).lerp(this.tmpMid.copy(chord).negate(), 0.68).normalize();
+    // Smoothly align exit & entry tangents with the live rotated engine pylon (+Z) and cockpit shackle (-Z)
+    this.tmpExitDir
+      .set(0, -0.04, 1)
+      .applyQuaternion(engineLocalQuat)
+      .lerp(chord, 0.58)
+      .normalize();
+    this.tmpEntryDir
+      .set(0, -0.02, -1)
+      .applyQuaternion(cockpitLocalQuat)
+      .lerp(this.tmpMid.copy(chord).negate(), 0.64)
+      .normalize();
 
     const sag = THREE.MathUtils.lerp(0.56, 0.045, tension);
     const whipLat =
