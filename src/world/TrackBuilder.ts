@@ -421,12 +421,6 @@ export class TrackBuilder {
     const colRim = new THREE.Color(pal.rim);
 
     // Feature-specific accent colors
-    const colIceCore = new THREE.Color(0x9bcce3);
-    const colIceEdge = new THREE.Color(0x3b8db8);
-    const colMagmaGlow = new THREE.Color(0xff5500);
-    const colBasalt = new THREE.Color(0x1f1618);
-    const colBoostDeck = new THREE.Color(0x1e293b);
-    const colBoostRail = new THREE.Color(0x38bdf8);
     const colDuneCrest = new THREE.Color(0xc99c55);
     const colDuneTrough = new THREE.Color(0x9e672b);
     const colRidgeSpine = new THREE.Color(0x8c3b2b);
@@ -442,7 +436,6 @@ export class TrackBuilder {
       const flatRamp =
         s.feature === 'jump_lip' ||
         s.feature === 'landing_slope' ||
-        s.feature === 'boost_pad' ||
         s.feature === 'bridge_deck' ||
         s.feature === 'cliff_drop';
       const isChasm = s.feature === 'chasm_floor';
@@ -469,22 +462,7 @@ export class TrackBuilder {
           const uFloor = absD / halfW;
           const bank = d * Math.tan(s.bankingRad);
 
-          if (s.feature === 'ice_sheet') {
-            const trough = uFloor * uFloor * 0.65;
-            wy += trough + bank;
-            tmpCol.copy(colIceCore).lerp(colIceEdge, Math.pow(uFloor, 1.5));
-          } else if (s.feature === 'magma_vent') {
-            // Central molten fissure channel with raised dark basalt ledges
-            const fissure = uFloor < 0.42 ? -0.45 * (1 - uFloor / 0.42) : uFloor * uFloor * 1.1;
-            wy += fissure + bank + noise * 0.12;
-            const glowT = Math.max(0, 1 - uFloor / 0.48);
-            tmpCol.copy(colBasalt).lerp(colMagmaGlow, Math.pow(glowT, 1.4));
-          } else if (s.feature === 'boost_pad') {
-            const trough = uFloor * uFloor * 0.4;
-            wy += trough + bank;
-            const onRail = uFloor < 0.28 || (uFloor > 0.72 && uFloor < 0.84);
-            tmpCol.copy(onRail ? colBoostRail : colBoostDeck);
-          } else if (s.feature === 'sand_dunes') {
+          if (s.feature === 'sand_dunes') {
             // Rolling sinusoidal dune waves
             const duneWave = Math.sin(s.distance * 0.11 + d * 0.08) * 1.15;
             const trough = uFloor * uFloor * 1.2;
@@ -730,54 +708,18 @@ export class TrackBuilder {
   }
 
   private buildFeatureProps(): void {
-    const boostMat = new THREE.MeshStandardMaterial({
-      color: 0x38bdf8,
-      emissive: 0x38bdf8,
-      emissiveIntensity: 2.2,
-      roughness: 0.2,
-    });
-    const magmaMat = new THREE.MeshStandardMaterial({
-      color: 0xff5500,
-      emissive: 0xff4500,
-      emissiveIntensity: 2.4,
-      roughness: 0.4,
-    });
     const pylonMat = new THREE.MeshStandardMaterial({
       color: 0x334155,
       emissive: 0xf59e0b,
       emissiveIntensity: 1.1,
       roughness: 0.3,
     });
-    const iceMat = new THREE.MeshStandardMaterial({
-      color: 0xbae6fd,
-      emissive: 0x0284c7,
-      emissiveIntensity: 0.45,
-      flatShading: true,
-      roughness: 0.2,
-    });
 
     for (let i = 4; i < this.slices.length - 4; i++) {
       const s = this.slices[i];
       const yaw = Math.atan2(-s.tangent.x, -s.tangent.z);
 
-      if (s.feature === 'boost_pad' && i % 4 === 0) {
-        const barGeo = new THREE.BoxGeometry(s.canyonWidth * 0.42, 0.18, 1.4);
-        const bar = new THREE.Mesh(barGeo, boostMat);
-        bar.position.set(s.center.x, s.center.y + 0.14, s.center.z);
-        bar.rotation.y = yaw;
-        this.group.add(bar);
-      } else if (s.feature === 'magma_vent' && i % 7 === 0) {
-        const poolGeo = new THREE.CylinderGeometry(3.2, 3.6, 0.2, 8);
-        const pool = new THREE.Mesh(poolGeo, magmaMat);
-        pool.position.set(s.center.x, s.center.y - 0.32, s.center.z);
-        this.group.add(pool);
-
-        if (i % 14 === 0) {
-          const light = new THREE.PointLight(0xff5500, 22, 34, 1.6);
-          light.position.set(s.center.x, s.center.y + 2.5, s.center.z);
-          this.group.add(light);
-        }
-      } else if (s.feature === 'bridge_deck' && i % 5 === 0) {
+      if (s.feature === 'bridge_deck' && i % 5 === 0) {
         const halfW = s.canyonWidth * 0.5 + 0.6;
         const pylonGeo = new THREE.BoxGeometry(0.65, 2.8, 0.65);
         for (const side of [-1, 1]) {
@@ -790,19 +732,6 @@ export class TrackBuilder {
           pylon.rotation.y = yaw;
           this.group.add(pylon);
         }
-      } else if (s.feature === 'ice_sheet' && i % 11 === 0) {
-        const side = i % 22 === 0 ? 1 : -1;
-        const offset = s.canyonWidth * 0.5 + 10 + hash2D(i, 5) * 10;
-        const shardGeo = new THREE.OctahedronGeometry(3.2, 0);
-        shardGeo.scale(0.65, 2.6, 0.65);
-        const shard = new THREE.Mesh(shardGeo, iceMat);
-        shard.position.set(
-          s.center.x + s.right.x * side * offset,
-          s.center.y + 6.5,
-          s.center.z + s.right.z * side * offset
-        );
-        shard.rotation.set(0.15 * side, hash2D(i, 9) * Math.PI, -0.2 * side);
-        this.group.add(shard);
       } else if (s.feature === 'cliff_drop' && i % 4 === 0) {
         const halfW = s.canyonWidth * 0.5 - 0.8;
         const pylonGeo = new THREE.BoxGeometry(0.7, 3.2, 0.7);

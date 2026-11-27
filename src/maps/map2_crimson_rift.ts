@@ -5,7 +5,7 @@ export const MAP2_CRIMSON_RIFT: MapDefinition = {
   name: 'Crimson Rift',
   subtitle: 'Sector 02 • Basalt Spire Trench',
   description:
-    'Volcanic basalt canyon with twin-ledge ridge splits, thermal magma updrafts, and a glowing lava-tube cavern.',
+    'Volcanic basalt canyon with twin-ledge ridge splits, deep chasm plunges, and a glowing lava-tube cavern.',
   playable: true,
   biome: 'volcanic',
   medalsMs: {
@@ -28,10 +28,10 @@ export const MAP2_CRIMSON_RIFT: MapDefinition = {
     { pos: [-385, 2, -690], canyonWidth: 32, wallHeight: 38, bankingDeg: 8, feature: 'ridge_split' },
     { pos: [-370, 0, -795], canyonWidth: 26, wallHeight: 38, bankingDeg: 0, feature: 'normal', checkpoint: true },
 
-    // Sector 3: Magma Thermal Chasm (860 - 1340m) — updraft vents launch pod across molten rift
-    { pos: [-325, -2, -895], canyonWidth: 24, wallHeight: 40, bankingDeg: 0, feature: 'magma_vent' },
+    // Sector 3: Obsidian Chasm Jump (860 - 1340m) — high-speed launch across molten rift
+    { pos: [-325, -2, -895], canyonWidth: 24, wallHeight: 40, bankingDeg: 0, feature: 'normal' },
     { pos: [-265, 2, -985], canyonWidth: 24, wallHeight: 38, bankingDeg: 0, feature: 'jump_lip' },
-    { pos: [-200, -24, -1065], canyonWidth: 30, wallHeight: 52, bankingDeg: 0, feature: 'magma_vent' },
+    { pos: [-200, -24, -1065], canyonWidth: 30, wallHeight: 52, bankingDeg: 0, feature: 'chasm_floor' },
     { pos: [-130, -14, -1145], canyonWidth: 30, wallHeight: 44, bankingDeg: 0, feature: 'landing_slope' },
     { pos: [-55, -18, -1230], canyonWidth: 26, wallHeight: 42, bankingDeg: 10, feature: 'landing_slope', checkpoint: true },
 
@@ -45,14 +45,14 @@ export const MAP2_CRIMSON_RIFT: MapDefinition = {
     // Sector 5: Caldera Ridge & Cliff Plunge (1720 - 2240m)
     { pos: [200, -14, -1760], canyonWidth: 32, wallHeight: 40, bankingDeg: 0, feature: 'ridge_split' },
     { pos: [150, -10, -1860], canyonWidth: 32, wallHeight: 40, bankingDeg: 0, feature: 'ridge_split' },
-    { pos: [105, -6, -1955], canyonWidth: 24, wallHeight: 38, bankingDeg: 0, feature: 'magma_vent' },
+    { pos: [105, -6, -1955], canyonWidth: 24, wallHeight: 38, bankingDeg: 0, feature: 'normal' },
     { pos: [65, -4, -2045], canyonWidth: 24, wallHeight: 36, bankingDeg: 0, feature: 'cliff_drop' },
     { pos: [30, -46, -2135], canyonWidth: 30, wallHeight: 62, bankingDeg: 0, feature: 'chasm_floor' },
     { pos: [5, -36, -2225], canyonWidth: 28, wallHeight: 52, bankingDeg: 0, feature: 'landing_slope', checkpoint: true },
 
     // Sector 6: Basalt Sprint to Finish (2225 - 2600m)
     { pos: [-10, -38, -2325], canyonWidth: 26, wallHeight: 50, bankingDeg: -8, feature: 'normal' },
-    { pos: [-5, -38, -2425], canyonWidth: 26, wallHeight: 50, bankingDeg: 8, feature: 'magma_vent' },
+    { pos: [-5, -38, -2425], canyonWidth: 26, wallHeight: 50, bankingDeg: 8, feature: 'normal' },
     { pos: [10, -38, -2525], canyonWidth: 28, wallHeight: 48, bankingDeg: 0, feature: 'finish_basin' },
     { pos: [15, -38, -2620], canyonWidth: 30, wallHeight: 46, bankingDeg: 0, feature: 'finish_basin' },
   ],

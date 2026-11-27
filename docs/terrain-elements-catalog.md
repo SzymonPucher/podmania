@@ -25,9 +25,7 @@ A catalog of terrain features and layout elements across all playable maps in Po
 | **Enclosed Cavern** (`cave`) | Pitch-dark roofed rock/ice/geode tunnel with dim crystal glints and ceiling collision where the pod's engines are the brightest light source. | Dustveil Gorge, Crimson Rift, Frostspire Glacier, Sunscorch Labyrinth |
 | **Jumpy Section — Rolling Dunes** (`sand_dunes`) | Sinusoidal wave-shaped terrain floor creating rhythmic vertical bumps. | Sunscorch Labyrinth |
 | **Jumpy Section — Rough Scree** (`rough_scree`) | Jagged, uneven boulder-strewn floor with high surface noise. | *(available terrain type; currently unused in maps)* |
-| **Boost Pad / Accelerator Rail** (`boost_pad`) | Flat high-speed energy deck with glowing guide rails, often placed before jumps or finish sprints. | Frostspire Glacier, Zenith Skyway, Sunscorch Labyrinth |
-| **Thermal Magma Vent / Geyser** (`magma_vent`) | Central glowing fissure with raised outer basalt ledges and thermal updrafts. | Crimson Rift, Sunscorch Labyrinth |
-| **Low-Friction Ice Sheet** (`ice_sheet`) | Smooth, shallow-trough glacial surface built for long drifts. | Frostspire Glacier |
+| **Steep Downhill Speed Chute** | Long, steep downward slope (`26m–38m` descent over `200m–310m`) that builds raw speed via gravity before jumps or finish sprints. | Frostspire Glacier, Zenith Skyway, Sunscorch Labyrinth |
 | **Elevated Skyway / Bridge Deck** (`bridge_deck`) | Flat suspended causeway with low outer curbs and open drop-offs instead of canyon walls. | Zenith Skyway |
 | **Banked Canyon Berm** | Angled track floor (`6°–18°` banking) for carrying speed through curves. | Dustveil Gorge, Crimson Rift, Frostspire Glacier, Zenith Skyway, Sunscorch Labyrinth |
 | **Narrow Technical Squeeze** | Tight `20–22m` canyon width sections (compared to `28–36m` wide basins/splits). | Dustveil Gorge (`20m`), Crimson Rift (`22m`), Frostspire Glacier (`22m`), Sunscorch Labyrinth (`22m`) |

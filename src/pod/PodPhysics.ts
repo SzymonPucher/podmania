@@ -384,14 +384,7 @@ export class PodPhysics {
       s.isGrounded || flyingThrustInAir ? 1.0 : POD_CONFIG.airborneLinearDragMult;
     let terrainGripMult = 1.0;
     if (s.isGrounded) {
-      if (currentFeature === 'boost_pad' && driveEnabled) {
-        driveAccel += 26.0;
-        terrainDragMult = 0.8;
-        terrainGripMult = 1.35;
-      } else if (currentFeature === 'ice_sheet') {
-        terrainDragMult = 0.72;
-        terrainGripMult = 0.28;
-      } else if (currentFeature === 'sand_dunes') {
+      if (currentFeature === 'sand_dunes') {
         terrainDragMult = 1.2;
         terrainGripMult = 0.85;
       } else if (currentFeature === 'rough_scree') {
@@ -400,8 +393,6 @@ export class PodPhysics {
       } else if (currentFeature === 'bridge_deck') {
         terrainDragMult = 0.9;
         terrainGripMult = 1.3;
-      } else if (currentFeature === 'magma_vent') {
-        driveAccel += 5.5;
       }
     }
 
@@ -617,11 +608,6 @@ export class PodPhysics {
             : 1.0;
         aHover = Math.max(0, rawHover) * taper;
       }
-    }
-
-    // Magma vent thermal updraft
-    if (currentFeature === 'magma_vent' && h < 18.0) {
-      aHover += 16.5 * (1 - h / 18.0);
     }
 
     s.vel.y += (aHover + aVectoredLift - POD_CONFIG.gravity) * dt;
