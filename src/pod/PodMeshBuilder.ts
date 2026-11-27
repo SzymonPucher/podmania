@@ -63,6 +63,7 @@ export class PodMeshBuilder {
   private flapFlareLeft = 0;
   private flapFlareRight = 0;
   private engineDamperLift = 0;
+  private damperGlideBlend = 0;
 
   constructor() {
     this.podRoot.rotation.order = 'YXZ';
@@ -115,31 +116,33 @@ export class PodMeshBuilder {
   }
 
   public update(t: PodTelemetry, dt: number, elapsedTime: number): void {
-    this.podRoot.position.copy(t.pos);
-    this.podRoot.rotation.set(t.pitch, t.yaw, t.roll, 'YXZ');
-
-    // Subtle engine vibration, damper upward lift & articulated cockpit lag
-    const liftTarget = t.damperFiring ? 1.15 : 0;
-    const liftRate = t.damperFiring ? 16 : 10;
-    this.engineDamperLift = THREE.MathUtils.lerp(
-      this.engineDamperLift,
-      liftTarget,
-      1 - Math.exp(-liftRate * dt)
+    const glideRate = t.damperFiring ? 12 : 8;
+    this.damperGlideBlend = THREE.MathUtils.lerp(
+      this.damperGlideBlend,
+      t.damperFiring ? 1 : 0,
+      1 - Math.exp(-glideRate * dt)
     );
+
+    this.podRoot.position.copy(t.pos);
+    this.podRoot.rotation.set(t.pitch + this.damperGlideBlend * 0.18, t.yaw, t.roll, 'YXZ');
+
+    // Subtle engine vibration, damper upward lift & plane-landing glide pitch
+    this.engineDamperLift = this.damperGlideBlend * 1.15;
     const vib = (Math.abs(t.pLeft) + Math.abs(t.pRight)) * 0.008;
     this.enginesGroup.position.set(
       (Math.random() - 0.5) * vib,
       this.engineDamperLift + (Math.random() - 0.5) * vib,
       0
     );
+    this.enginesGroup.rotation.x = this.damperGlideBlend * 0.12;
 
     this.cockpitGroup.position.set(
       t.cockpitYawOffset * 1.4,
-      0.85 + t.cockpitVertOffset,
+      0.85 - this.damperGlideBlend * 0.35 + t.cockpitVertOffset,
       COCKPIT_BASE_Z
     );
     this.cockpitGroup.rotation.set(
-      0,
+      -this.damperGlideBlend * 0.06,
       t.cockpitYawOffset,
       t.cockpitRollOffset,
       'YXZ'
