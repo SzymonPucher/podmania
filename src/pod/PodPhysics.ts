@@ -287,9 +287,15 @@ export class PodPhysics {
         : s.engineTilt * POD_CONFIG.tiltedGroundDrag
       : s.engineTilt * POD_CONFIG.tiltedAirDrag;
 
+    const tiltQuadMult =
+      this.postLandingTiltDragGrace > 0
+        ? 1.0
+        : 1.0 + s.engineTilt * POD_CONFIG.tiltedQuadDragMult;
+
     const quadDragEff =
       POD_CONFIG.quadDrag *
       (s.isGrounded ? 1.0 : POD_CONFIG.airborneQuadDragMult) *
+      tiltQuadMult *
       (1 - 0.48 * s.landingBoost);
 
     const dragAccel =

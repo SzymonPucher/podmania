@@ -12,7 +12,8 @@ interface EngineVisualRefs {
   reversePuff: THREE.Mesh;
   emitterWorldDummy: THREE.Object3D;
   pylonDummy: THREE.Object3D;
-  damperCone: THREE.Mesh;
+  tiltThrusterCore: THREE.Mesh;
+  tiltThrusterOuter: THREE.Mesh;
 }
 
 interface CableBuffer {
@@ -183,14 +184,15 @@ export class PodMeshBuilder {
       elapsedTime
     );
 
-    // Glow under pod only during vectored thrust / landing boost overdrive (never from Space alone)
+    // Glow under pod during engine tilting, vectored thrust, or landing boost overdrive
+    const tiltGlow = this.visualTiltBlend * 8;
     const vectoredGlow =
       t.landingBoost > 0.02
         ? t.landingBoost * 22
         : !t.isGrounded && t.engineTilt > 0.3 && t.pLeft + t.pRight > 0.6 && !t.airborneOverload
           ? (t.pLeft + t.pRight) * 0.5 * t.engineTilt * 12
           : 0;
-    this.damperLight.intensity = vectoredGlow;
+    this.damperLight.intensity = Math.max(tiltGlow, vectoredGlow);
 
     // Ensure matrices are current before computing local attachment points
     this.podRoot.updateMatrixWorld(true);
@@ -281,8 +283,19 @@ export class PodMeshBuilder {
       eng.reversePuff.visible = false;
     }
 
-    // Spacebar only tilts main engines (no separate ventral thruster jet)
-    eng.damperCone.visible = false;
+    // Front-ventral tilt thruster jet facing down to show the engine tilting
+    if (this.visualTiltBlend > 0.03) {
+      eng.tiltThrusterCore.visible = true;
+      eng.tiltThrusterOuter.visible = true;
+      const pulse = 0.88 + Math.sin(elapsedTime * 55) * 0.14;
+      const lenScale = (0.3 + this.visualTiltBlend * 0.9) * pulse;
+      const radScale = 0.55 + this.visualTiltBlend * 0.55;
+      eng.tiltThrusterCore.scale.set(radScale * 0.85, lenScale * 0.8, radScale * 0.85);
+      eng.tiltThrusterOuter.scale.set(radScale, lenScale, radScale);
+    } else {
+      eng.tiltThrusterCore.visible = false;
+      eng.tiltThrusterOuter.visible = false;
+    }
   }
 
   private createMaterials() {
@@ -631,21 +644,39 @@ export class PodMeshBuilder {
     pylonDummy.position.set(-sideSign * 0.13, 0.50, -1.05);
     root.add(pylonDummy);
 
-    // 8. Ventral Damping Thruster Nozzle & Cyan Cone
-    const dampNozzle = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.11, 0.14, 0.12, 12),
+    // 8. Front-Ventral Tilt Thruster Nozzle & Downward Jet Plumes (z = -2.82, facing -Y)
+    const tiltNozzle = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.11, 0.15, 0.14, 14),
       mats.gunmetal
     );
-    dampNozzle.position.set(0, -0.52, -1.5);
-    root.add(dampNozzle);
+    tiltNozzle.position.set(0, -0.49, -2.82);
+    root.add(tiltNozzle);
 
-    const dampConeGeo = new THREE.ConeGeometry(0.28, 1.5, 14, 1, true);
-    dampConeGeo.rotateX(Math.PI);
-    dampConeGeo.translate(0, -0.75, 0);
-    const damperCone = new THREE.Mesh(dampConeGeo, mats.damperJet);
-    damperCone.position.set(0, -0.56, -1.5);
-    damperCone.visible = false;
-    root.add(damperCone);
+    const tiltCoreGeo = new THREE.ConeGeometry(0.18, 1.35, 14, 1, true);
+    tiltCoreGeo.rotateX(Math.PI);
+    tiltCoreGeo.translate(0, -0.675, 0);
+    const tiltThrusterCore = new THREE.Mesh(
+      tiltCoreGeo,
+      new THREE.MeshBasicMaterial({
+        color: 0xe0f2fe,
+        blending: THREE.AdditiveBlending,
+        transparent: true,
+        opacity: 0.92,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+    );
+    tiltThrusterCore.position.set(0, -0.54, -2.82);
+    tiltThrusterCore.visible = false;
+    root.add(tiltThrusterCore);
+
+    const tiltOuterGeo = new THREE.ConeGeometry(0.32, 1.9, 14, 1, true);
+    tiltOuterGeo.rotateX(Math.PI);
+    tiltOuterGeo.translate(0, -0.95, 0);
+    const tiltThrusterOuter = new THREE.Mesh(tiltOuterGeo, mats.damperJet);
+    tiltThrusterOuter.position.set(0, -0.54, -2.82);
+    tiltThrusterOuter.visible = false;
+    root.add(tiltThrusterOuter);
 
     return {
       root,
@@ -656,7 +687,8 @@ export class PodMeshBuilder {
       reversePuff,
       emitterWorldDummy,
       pylonDummy,
-      damperCone,
+      tiltThrusterCore,
+      tiltThrusterOuter,
     };
   }
 
