@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { PodTelemetry } from '../types';
-import { POD_CONFIG } from './PodConfig';
 
 interface EngineVisualRefs {
   root: THREE.Group;
@@ -12,8 +11,6 @@ interface EngineVisualRefs {
   reversePuff: THREE.Mesh;
   emitterWorldDummy: THREE.Object3D;
   pylonDummy: THREE.Object3D;
-  tiltThrusterCore: THREE.Mesh;
-  tiltThrusterOuter: THREE.Mesh;
 }
 
 interface CableBuffer {
@@ -63,7 +60,6 @@ export class PodMeshBuilder {
 
   private flapFlareLeft = 0;
   private flapFlareRight = 0;
-  private visualTiltBlend = 0;
   private readonly normalOuterColor = new THREE.Color(0xff7711);
   private readonly boostOuterColor = new THREE.Color(0x38bdf8);
   private readonly overloadOuterColor = new THREE.Color(0xef4444);
@@ -119,26 +115,18 @@ export class PodMeshBuilder {
   }
 
   public update(t: PodTelemetry, dt: number, elapsedTime: number): void {
-    this.visualTiltBlend = THREE.MathUtils.lerp(
-      this.visualTiltBlend,
-      t.engineTilt,
-      1 - Math.exp(-22 * dt)
-    );
-
     this.podRoot.position.copy(t.pos);
     this.podRoot.rotation.set(t.pitch, t.yaw, t.roll, 'YXZ');
 
-    // Spacebar rotates the twin engines upwards to ~40 degrees around their rear mount
+    // Subtle engine vibration & trailing cockpit
     const overloadVib = t.airborneOverload ? 0.055 : 0;
     const vib = (Math.abs(t.pLeft) + Math.abs(t.pRight)) * 0.008 + overloadVib;
-    const mountClearanceLift = this.visualTiltBlend * 0.35;
     this.enginesGroup.position.set(
       (Math.random() - 0.5) * vib,
-      mountClearanceLift + (Math.random() - 0.5) * vib,
+      (Math.random() - 0.5) * vib,
       0
     );
-    this.enginesGroup.rotation.x =
-      this.visualTiltBlend * THREE.MathUtils.degToRad(POD_CONFIG.engineTiltMaxDeg);
+    this.enginesGroup.rotation.x = 0;
 
     this.cockpitGroup.position.set(
       t.cockpitYawOffset * 1.4,
@@ -146,7 +134,7 @@ export class PodMeshBuilder {
       COCKPIT_BASE_Z
     );
     this.cockpitGroup.rotation.set(
-      -this.visualTiltBlend * 0.06,
+      0,
       t.cockpitYawOffset,
       t.cockpitRollOffset,
       'YXZ'
@@ -184,15 +172,8 @@ export class PodMeshBuilder {
       elapsedTime
     );
 
-    // Glow under pod during engine tilting, vectored thrust, or landing boost overdrive
-    const tiltGlow = this.visualTiltBlend * 8;
-    const vectoredGlow =
-      t.landingBoost > 0.02
-        ? t.landingBoost * 22
-        : !t.isGrounded && t.engineTilt > 0.3 && t.pLeft + t.pRight > 0.6 && !t.airborneOverload
-          ? (t.pLeft + t.pRight) * 0.5 * t.engineTilt * 12
-          : 0;
-    this.damperLight.intensity = Math.max(tiltGlow, vectoredGlow);
+    // Glow under pod during landing boost overdrive
+    this.damperLight.intensity = t.landingBoost > 0.02 ? t.landingBoost * 22 : 0;
 
     // Ensure matrices are current before computing local attachment points
     this.podRoot.updateMatrixWorld(true);
@@ -281,20 +262,6 @@ export class PodMeshBuilder {
       eng.reversePuff.scale.set(puffScale, puffScale, puffScale);
     } else {
       eng.reversePuff.visible = false;
-    }
-
-    // Front-ventral tilt thruster jet facing down to show the engine tilting
-    if (this.visualTiltBlend > 0.03) {
-      eng.tiltThrusterCore.visible = true;
-      eng.tiltThrusterOuter.visible = true;
-      const pulse = 0.88 + Math.sin(elapsedTime * 55) * 0.14;
-      const lenScale = (0.3 + this.visualTiltBlend * 0.9) * pulse;
-      const radScale = 0.55 + this.visualTiltBlend * 0.55;
-      eng.tiltThrusterCore.scale.set(radScale * 0.85, lenScale * 0.8, radScale * 0.85);
-      eng.tiltThrusterOuter.scale.set(radScale, lenScale, radScale);
-    } else {
-      eng.tiltThrusterCore.visible = false;
-      eng.tiltThrusterOuter.visible = false;
     }
   }
 
@@ -644,61 +611,6 @@ export class PodMeshBuilder {
     pylonDummy.position.set(-sideSign * 0.13, 0.50, -1.05);
     root.add(pylonDummy);
 
-    // 8. Front-Ventral Tilt Thruster Nozzle & Downward Jet Plumes (z = -2.82, facing -Y)
-    const tiltNozzleGroup = new THREE.Group();
-    tiltNozzleGroup.position.set(0, -0.50, -2.82);
-
-    const tiltCollar = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.18, 0.16, 0.14, 16),
-      mats.copper
-    );
-    tiltCollar.position.set(0, 0.02, 0);
-    tiltNozzleGroup.add(tiltCollar);
-
-    const tiltNozzle = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.14, 0.22, 0.24, 16),
-      mats.steel
-    );
-    tiltNozzle.position.set(0, -0.14, 0);
-    tiltNozzle.castShadow = true;
-    tiltNozzleGroup.add(tiltNozzle);
-
-    const tiltRim = new THREE.Mesh(
-      new THREE.TorusGeometry(0.20, 0.028, 8, 20),
-      new THREE.MeshBasicMaterial({ color: 0x38bdf8 })
-    );
-    tiltRim.rotation.x = Math.PI / 2;
-    tiltRim.position.set(0, -0.25, 0);
-    tiltNozzleGroup.add(tiltRim);
-
-    root.add(tiltNozzleGroup);
-
-    const tiltCoreGeo = new THREE.ConeGeometry(0.18, 1.35, 14, 1, true);
-    tiltCoreGeo.rotateX(Math.PI);
-    tiltCoreGeo.translate(0, -0.675, 0);
-    const tiltThrusterCore = new THREE.Mesh(
-      tiltCoreGeo,
-      new THREE.MeshBasicMaterial({
-        color: 0xe0f2fe,
-        blending: THREE.AdditiveBlending,
-        transparent: true,
-        opacity: 0.92,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-      })
-    );
-    tiltThrusterCore.position.set(0, -0.74, -2.82);
-    tiltThrusterCore.visible = false;
-    root.add(tiltThrusterCore);
-
-    const tiltOuterGeo = new THREE.ConeGeometry(0.32, 1.9, 14, 1, true);
-    tiltOuterGeo.rotateX(Math.PI);
-    tiltOuterGeo.translate(0, -0.95, 0);
-    const tiltThrusterOuter = new THREE.Mesh(tiltOuterGeo, mats.damperJet);
-    tiltThrusterOuter.position.set(0, -0.74, -2.82);
-    tiltThrusterOuter.visible = false;
-    root.add(tiltThrusterOuter);
-
     return {
       root,
       fanGroup,
@@ -708,8 +620,6 @@ export class PodMeshBuilder {
       reversePuff,
       emitterWorldDummy,
       pylonDummy,
-      tiltThrusterCore,
-      tiltThrusterOuter,
     };
   }
 

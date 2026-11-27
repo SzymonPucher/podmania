@@ -20,11 +20,9 @@ export class PodPhysics {
   private prevVelY = 0;
 
   // Per-jump sequence tracking
-  private airMidFlightThrustTime = 0;
-  private airEarlySpaceTime = 0;
-  private flareWindowPeakThrust = 0;
+  private flareWindowPeakMinThrust = 0;
   private peakAirImpactSpeed = 0;
-  private postLandingTiltDragGrace = 0;
+  private ignitionStartedInFlareWindow = false;
 
   private readonly tmpForward = new THREE.Vector3();
   private readonly tmpRight = new THREE.Vector3();
@@ -46,11 +44,11 @@ export class PodPhysics {
       clearance: POD_CONFIG.hoverHeight,
       isGrounded: true,
       airTime: 0,
-      engineTilt: 0,
+      enginesOffTime: 0,
+      coastReady: false,
       landingBoost: 0,
       airborneOverload: false,
       timeToImpact: Infinity,
-      coastDiscipline: 1,
       hullIntegrity: 100,
       cockpitYawOffset: 0,
       cockpitRollOffset: 0,
@@ -77,11 +75,11 @@ export class PodPhysics {
     s.clearance = POD_CONFIG.hoverHeight;
     s.isGrounded = true;
     s.airTime = 0;
-    s.engineTilt = 0;
+    s.enginesOffTime = 0;
+    s.coastReady = false;
     s.landingBoost = 0;
     s.airborneOverload = false;
     s.timeToImpact = Infinity;
-    s.coastDiscipline = 1;
     s.hullIntegrity = 100;
     s.cockpitYawOffset = 0;
     s.cockpitRollOffset = 0;
@@ -97,11 +95,9 @@ export class PodPhysics {
     this.prevOmegaYaw = 0;
     this.prevVelY = 0;
 
-    this.airMidFlightThrustTime = 0;
-    this.airEarlySpaceTime = 0;
-    this.flareWindowPeakThrust = 0;
+    this.flareWindowPeakMinThrust = 0;
     this.peakAirImpactSpeed = 0;
-    this.postLandingTiltDragGrace = 0;
+    this.ignitionStartedInFlareWindow = false;
   }
 
   public step(
@@ -124,27 +120,24 @@ export class PodPhysics {
     const driveEnabled = allowDrive && !isWrecked;
     const hullScale = s.hullIntegrity < 30 ? 0.9 + (s.hullIntegrity / 30) * 0.1 : 1.0;
 
-    // Pressing Space ONLY rotates the engines upwards toward ~40 degrees
-    if (driveEnabled && input.spaceHeld) {
-      s.engineTilt = Math.min(1, s.engineTilt + POD_CONFIG.engineTiltUpRate * dt);
-    } else {
-      s.engineTilt = Math.max(0, s.engineTilt - POD_CONFIG.engineTiltDownRate * dt);
-    }
-
     if (s.landingBoost > 0) {
       s.landingBoost = Math.max(
         0,
         s.landingBoost - dt / POD_CONFIG.vectorBoostDurationSec
       );
     }
-    if (this.postLandingTiltDragGrace > 0) {
-      this.postLandingTiltDragGrace = Math.max(0, this.postLandingTiltDragGrace - dt);
-    }
 
     const effLeft = driveEnabled ? s.pLeft * hullScale : 0;
     const effRight = driveEnabled ? s.pRight * hullScale : 0;
     const fwdInputLevel = driveEnabled
       ? (Math.max(0, input.targetLeft) + Math.max(0, input.targetRight)) * 0.5
+      : 0;
+    const bothEnginesOff =
+      driveEnabled && input.targetLeft === 0 && input.targetRight === 0;
+    const bothEnginesActiveForward =
+      driveEnabled && input.targetLeft > 0 && input.targetRight > 0;
+    const minForwardInput = bothEnginesActiveForward
+      ? Math.min(input.targetLeft, input.targetRight)
       : 0;
 
     const horizSpeed = Math.hypot(s.vel.x, s.vel.z);
@@ -242,15 +235,10 @@ export class PodPhysics {
     s.timeToImpact = tti;
 
     // 5. Horizontal Propulsion, Air Coasting & Overdrive Boost
-    const tiltRad = s.engineTilt * THREE.MathUtils.degToRad(POD_CONFIG.engineTiltMaxDeg);
-    const forwardTiltCos =
-      this.postLandingTiltDragGrace > 0 ? 1.0 : Math.cos(tiltRad);
-
     let driveAccel =
       (effLeft + effRight) *
       0.5 *
       POD_CONFIG.maxForwardAccel *
-      forwardTiltCos *
       (s.isGrounded ? 1.0 : POD_CONFIG.airborneDriveScale);
 
     if (s.landingBoost > 0 && s.isGrounded && driveEnabled) {
@@ -281,25 +269,13 @@ export class PodPhysics {
       }
     }
 
-    const tiltDrag = s.isGrounded
-      ? this.postLandingTiltDragGrace > 0
-        ? 0
-        : s.engineTilt * POD_CONFIG.tiltedGroundDrag
-      : s.engineTilt * POD_CONFIG.tiltedAirDrag;
-
-    const tiltQuadMult =
-      this.postLandingTiltDragGrace > 0
-        ? 1.0
-        : 1.0 + s.engineTilt * POD_CONFIG.tiltedQuadDragMult;
-
     const quadDragEff =
       POD_CONFIG.quadDrag *
       (s.isGrounded ? 1.0 : POD_CONFIG.airborneQuadDragMult) *
-      tiltQuadMult *
       (1 - 0.48 * s.landingBoost);
 
     const dragAccel =
-      (POD_CONFIG.linearDrag * terrainDragMult + tiltDrag) * vFwd +
+      POD_CONFIG.linearDrag * terrainDragMult * vFwd +
       quadDragEff * vFwd * Math.abs(vFwd) +
       (s.isGrounded ? POD_CONFIG.slideSpeedScrub * Math.abs(vLat) * Math.sign(vFwd) : 0);
 
@@ -315,7 +291,29 @@ export class PodPhysics {
     s.vel.x = this.tmpForward.x * vFwd + this.tmpRight.x * vLat;
     s.vel.z = this.tmpForward.z * vFwd + this.tmpRight.z * vLat;
 
-    // 6. Airborne Sequence Tracking, High-Altitude Thrust Damage & Landing Flare
+    // 6. Track 1s Engines-Off Coasting & Pre-Touchdown Ignition
+    if (bothEnginesOff) {
+      if (!this.ignitionStartedInFlareWindow) {
+        s.enginesOffTime += dt;
+        if (s.enginesOffTime >= POD_CONFIG.minEnginesOffSec) {
+          s.coastReady = true;
+        }
+      }
+    } else if (s.isGrounded && s.airTime === 0) {
+      s.enginesOffTime = 0;
+      s.coastReady = false;
+      this.ignitionStartedInFlareWindow = false;
+    } else if (
+      !s.isGrounded &&
+      !this.ignitionStartedInFlareWindow &&
+      tti > POD_CONFIG.thrustFlareWindowSec &&
+      s.airTime > POD_CONFIG.takeoffThrustGraceSec
+    ) {
+      // Turning engines back on too early in mid-air resets the 1s coast
+      s.enginesOffTime = 0;
+      s.coastReady = false;
+    }
+
     let aVectoredLift = 0;
 
     if (!s.isGrounded) {
@@ -330,71 +328,38 @@ export class PodPhysics {
         this.peakAirImpactSpeed = curImpactNormalSpeed;
       }
 
-      // Track early Space holding before the pre-landing rotation window
-      if (
-        driveEnabled &&
-        input.spaceHeld &&
-        s.airTime > 0.18 &&
-        tti > POD_CONFIG.spaceRotateWindowSec
-      ) {
-        this.airEarlySpaceTime += dt;
-      }
-
-      // Track mid-flight thrust (diminishes landing effect) & high-altitude overload damage
+      // Applying thrust while airborne high up damages the pod
       if (
         driveEnabled &&
         s.airTime > POD_CONFIG.takeoffThrustGraceSec &&
-        tti > POD_CONFIG.thrustFlareWindowSec
+        tti > POD_CONFIG.thrustFlareWindowSec &&
+        fwdInputLevel > 0 &&
+        h > POD_CONFIG.highAirDamageClearance
       ) {
-        if (fwdInputLevel > 0) {
-          this.airMidFlightThrustTime += fwdInputLevel * dt;
-
-          // Applying thrust while airborne high up damages the pod
-          if (h > POD_CONFIG.highAirDamageClearance) {
-            const altSeverity = THREE.MathUtils.clamp(
-              (h - POD_CONFIG.highAirDamageClearance) / 14.0,
-              0.38,
-              1.5
-            );
-            const airDmg =
-              POD_CONFIG.highAirThrustDamageRate * fwdInputLevel * altSeverity * dt;
-            s.hullIntegrity = Math.max(0, s.hullIntegrity - airDmg);
-            s.airborneOverload = true;
-          }
-        }
+        const altSeverity = THREE.MathUtils.clamp(
+          (h - POD_CONFIG.highAirDamageClearance) / 14.0,
+          0.38,
+          1.5
+        );
+        const airDmg =
+          POD_CONFIG.highAirThrustDamageRate * fwdInputLevel * altSeverity * dt;
+        s.hullIntegrity = Math.max(0, s.hullIntegrity - airDmg);
+        s.airborneOverload = true;
       }
 
-      s.coastDiscipline = THREE.MathUtils.clamp(
-        1.0 - (this.airMidFlightThrustTime - 0.05) / 0.55,
-        0.12,
-        1.0
-      );
-
-      // Final pre-touchdown flare window ("almost touching the ground")
+      // Final pre-touchdown ignition window ("right before hitting the ground")
       if (
-        driveEnabled &&
-        tti <= POD_CONFIG.thrustFlareWindowSec &&
+        s.coastReady &&
+        (this.ignitionStartedInFlareWindow || tti <= POD_CONFIG.thrustFlareWindowSec) &&
         h < 16.0 &&
-        s.vel.y < -1.0
+        s.vel.y < -1.0 &&
+        bothEnginesActiveForward
       ) {
-        if (s.engineTilt > 0.2 && fwdInputLevel > this.flareWindowPeakThrust) {
-          this.flareWindowPeakThrust = fwdInputLevel;
+        this.ignitionStartedInFlareWindow = true;
+        if (minForwardInput > this.flareWindowPeakMinThrust) {
+          this.flareWindowPeakMinThrust = minForwardInput;
         }
-
-        // Physical ground-effect cushion ONLY when engines are tilted AND thrust is applied!
-        if (s.engineTilt > 0.1 && fwdInputLevel > 0) {
-          const spaceTimingQuality = THREE.MathUtils.clamp(
-            1.0 - (this.airEarlySpaceTime - 0.14) / 0.58,
-            0.2,
-            1.0
-          );
-          aVectoredLift =
-            fwdInputLevel *
-            Math.sin(tiltRad) *
-            POD_CONFIG.vectoredGroundLiftAccel *
-            s.coastDiscipline *
-            spaceTimingQuality;
-        }
+        aVectoredLift = minForwardInput * POD_CONFIG.vectoredGroundLiftAccel;
       }
     } else if (
       !wasGrounded ||
@@ -412,129 +377,54 @@ export class PodPhysics {
           this.peakAirImpactSpeed * 0.92
         );
 
-        const spaceTimingQuality = THREE.MathUtils.clamp(
-          1.0 - (this.airEarlySpaceTime - 0.14) / 0.58,
-          0.2,
-          1.0
+        const effectiveIgnitionThrust = Math.max(
+          minForwardInput,
+          this.flareWindowPeakMinThrust
         );
-        const coastDiscipline = THREE.MathUtils.clamp(
-          1.0 - (this.airMidFlightThrustTime - 0.05) / 0.55,
-          0.12,
-          1.0
-        );
-        s.coastDiscipline = coastDiscipline;
 
-        // Tilt commitment requires engines actually rotated upwards right before ground
-        const tiltCommitment =
-          THREE.MathUtils.smoothstep(s.engineTilt, 0.28, 0.82) * spaceTimingQuality;
-
-        // Thrust commitment requires slamming FULL thrust right before touching the ground
-        const effectiveFlareThrust = Math.max(
-          fwdInputLevel,
-          this.flareWindowPeakThrust * 0.92
-        );
-        const thrustCommitment = Math.pow(effectiveFlareThrust, 1.5);
-
-        const vectorFlareQuality =
-          tiltCommitment * thrustCommitment * coastDiscipline;
-
-        // Space-only factor (tilting engines without thrust only reduces damage a little bit)
-        const spaceOnlyFactor =
-          THREE.MathUtils.smoothstep(s.engineTilt, 0.25, 0.8) *
-          (0.45 + 0.55 * spaceTimingQuality);
-
-        if (vectorFlareQuality >= 0.65) {
-          // Full sequence nailed: zero damage + HUGE speed boost!
+        if (s.coastReady && effectiveIgnitionThrust > 0) {
+          // Coasted with both engines off >= 1s and activated both right before ground:
+          // Zero damage + huge speed boost!
           const jumpScale = THREE.MathUtils.clamp(
             (s.airTime - POD_CONFIG.minAirTimeForLandingCheck) / 1.25,
             0.25,
             1.0
           );
-          const boostQuality = THREE.MathUtils.clamp(
-            (vectorFlareQuality - 0.5) / 0.5,
-            0.4,
+          const thrustScale = THREE.MathUtils.clamp(
+            0.45 + 0.55 * effectiveIgnitionThrust,
+            0.45,
             1.0
           );
           const addSpeedMs =
             (POD_CONFIG.vectorBoostBaseAddMs +
               jumpScale * POD_CONFIG.vectorBoostBigJumpAddMs) *
-            boostQuality;
+            thrustScale;
 
           vFwd = Math.max(vFwd, 36) + addSpeedMs;
           s.vel.x = this.tmpForward.x * vFwd + this.tmpRight.x * (vLat * 0.35);
           s.vel.z = this.tmpForward.z * vFwd + this.tmpRight.z * (vLat * 0.35);
 
-          // Align vertical velocity smoothly along the landing slope so pod skims like a rail
           const targetSlopeVelY = vFwd * slopeTanY;
           s.vel.y = Math.max(s.vel.y * 0.2, targetSlopeVelY - 1.5);
 
-          // Snap engines to full spool & ignite overdrive boost
-          s.pLeft = 1.0;
-          s.pRight = 1.0;
-          s.landingBoost = Math.max(s.landingBoost, boostQuality);
-          this.postLandingTiltDragGrace = 0.48;
+          s.pLeft = Math.max(s.pLeft, effectiveIgnitionThrust);
+          s.pRight = Math.max(s.pRight, effectiveIgnitionThrust);
+          s.landingBoost = Math.max(s.landingBoost, thrustScale);
 
           s.lastLandingEvent = 'vector_boost';
           s.lastLandingBoostKmh = Math.round(addSpeedMs * 3.6);
-        } else if (vectorFlareQuality >= 0.28) {
-          // Partial / diminished sequence (e.g. held thrust during flight or partial throttle)
-          const partialSafeSpeed = THREE.MathUtils.lerp(
-            POD_CONFIG.spaceOnlySafeImpactSpeed,
-            25.0,
-            (vectorFlareQuality - 0.28) / 0.37
+        } else if (rawImpactSpeed > POD_CONFIG.safeImpactSpeed) {
+          const excess = rawImpactSpeed - POD_CONFIG.safeImpactSpeed;
+          const dmg = THREE.MathUtils.clamp(
+            excess * excess * POD_CONFIG.damagePerExcessSpeedSq,
+            6,
+            55
           );
-          const dmgMult = THREE.MathUtils.lerp(
-            POD_CONFIG.spaceOnlyDamageMult,
-            0.28,
-            (vectorFlareQuality - 0.28) / 0.37
-          );
-
-          // Modest boost only if impact wasn't severe, heavily diminished compared to clean flare
-          const smallBoostMs = 6.5 * vectorFlareQuality;
-          vFwd += smallBoostMs;
-          s.vel.x = this.tmpForward.x * vFwd + this.tmpRight.x * vLat;
-          s.vel.z = this.tmpForward.z * vFwd + this.tmpRight.z * vLat;
-          this.postLandingTiltDragGrace = 0.3;
-
-          if (rawImpactSpeed > partialSafeSpeed) {
-            const excess = rawImpactSpeed - partialSafeSpeed;
-            const dmg = THREE.MathUtils.clamp(
-              excess * excess * POD_CONFIG.damagePerExcessSpeedSq * dmgMult,
-              3,
-              32
-            );
-            s.hullIntegrity = Math.max(0, s.hullIntegrity - dmg);
-            s.lastLandingEvent = 'hard_impact';
-            s.lastLandingDamage = dmg;
-          } else {
-            s.lastLandingEvent = 'damped_landing';
-          }
-        } else {
-          // Raw crash OR Space-only ("Only pressing space should only reduce damage a little bit")
-          const safeSpeed = THREE.MathUtils.lerp(
-            POD_CONFIG.safeImpactSpeed,
-            POD_CONFIG.spaceOnlySafeImpactSpeed,
-            spaceOnlyFactor
-          );
-          if (rawImpactSpeed > safeSpeed) {
-            const excess = rawImpactSpeed - safeSpeed;
-            const dmgMult = THREE.MathUtils.lerp(
-              1.0,
-              POD_CONFIG.spaceOnlyDamageMult,
-              spaceOnlyFactor
-            );
-            const dmg = THREE.MathUtils.clamp(
-              excess * excess * POD_CONFIG.damagePerExcessSpeedSq * dmgMult,
-              6 * dmgMult,
-              55 * dmgMult
-            );
-            s.hullIntegrity = Math.max(0, s.hullIntegrity - dmg);
-            const speedKeep = THREE.MathUtils.lerp(0.65, 0.76, spaceOnlyFactor);
-            s.vel.x *= speedKeep;
-            s.vel.z *= speedKeep;
-            s.lastLandingEvent = 'hard_impact';
-            s.lastLandingDamage = dmg;
-          }
+          s.hullIntegrity = Math.max(0, s.hullIntegrity - dmg);
+          s.vel.x *= 0.65;
+          s.vel.z *= 0.65;
+          s.lastLandingEvent = 'hard_impact';
+          s.lastLandingDamage = dmg;
         }
 
         this.resetAirSequenceTrackers();
@@ -650,11 +540,11 @@ export class PodPhysics {
 
   private resetAirSequenceTrackers(): void {
     this.state.airTime = 0;
-    this.state.coastDiscipline = 1;
-    this.airMidFlightThrustTime = 0;
-    this.airEarlySpaceTime = 0;
-    this.flareWindowPeakThrust = 0;
+    this.state.enginesOffTime = 0;
+    this.state.coastReady = false;
+    this.flareWindowPeakMinThrust = 0;
     this.peakAirImpactSpeed = 0;
+    this.ignitionStartedInFlareWindow = false;
   }
 
   private spoolEngine(current: number, target: number, dt: number): number {

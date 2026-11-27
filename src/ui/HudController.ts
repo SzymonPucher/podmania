@@ -276,26 +276,18 @@ export class HudController {
       this.hullBarEl.classList.add('hull-low');
     }
 
-    // Engine Tilt & Vector Boost bar
+    // Air Coast (1s engines off) & Landing Boost bar
     if (t.landingBoost > 0.04) {
       this.damperPctEl.textContent = 'BOOST!';
       this.damperBarEl.style.width = `${Math.round(t.landingBoost * 100)}%`;
       this.damperBarEl.style.background = '#fbbf24';
     } else {
-      const tiltDeg = Math.round(t.engineTilt * POD_CONFIG.engineTiltMaxDeg);
-      this.damperPctEl.textContent = `${tiltDeg}°`;
-      this.damperBarEl.style.width = `${Math.round(t.engineTilt * 100)}%`;
-      const inRotateZone =
-        !t.isGrounded && t.timeToImpact <= POD_CONFIG.spaceRotateWindowSec;
-      const tiltedEarlyInAir =
-        !t.isGrounded &&
-        t.engineTilt > 0.2 &&
-        t.timeToImpact > POD_CONFIG.spaceRotateWindowSec;
-      this.damperBarEl.style.background = tiltedEarlyInAir
-        ? '#f59e0b'
-        : inRotateZone && t.engineTilt > 0.25
-          ? '#34d399'
-          : '#38bdf8';
+      const coastFrac = Math.min(1, t.enginesOffTime / POD_CONFIG.minEnginesOffSec);
+      this.damperPctEl.textContent = t.coastReady
+        ? 'READY'
+        : `${Math.round(coastFrac * 100)}%`;
+      this.damperBarEl.style.width = `${Math.round(coastFrac * 100)}%`;
+      this.damperBarEl.style.background = t.coastReady ? '#34d399' : '#38bdf8';
     }
 
     // Contextual airborne sequence coaching & overload warning
@@ -305,19 +297,18 @@ export class HudController {
         this.eventBadgeEl.textContent = 'AIR OVERLOAD — CUT THRUST!';
         this.eventBadgeEl.className = 'event-badge badge-overload-warn';
       } else if (!t.isGrounded && t.airTime > 0.28 && t.vel.y < -6.5) {
+        const bothEnginesActive = input.targetLeft > 0 && input.targetRight > 0;
         if (
+          t.coastReady &&
           t.timeToImpact <= POD_CONFIG.thrustFlareWindowSec &&
-          t.engineTilt >= 0.35
+          !bothEnginesActive
         ) {
           this.eventBadgeEl.dataset.livePrompt = '1';
-          this.eventBadgeEl.textContent = 'F + K — FULL THRUST NOW!';
+          this.eventBadgeEl.textContent = 'ENGINES ON NOW — BOOST!';
           this.eventBadgeEl.className = 'event-badge badge-vector-prompt';
-        } else if (
-          t.timeToImpact <= POD_CONFIG.spaceRotateWindowSec &&
-          !input.spaceHeld
-        ) {
+        } else if (!t.coastReady && (input.targetLeft > 0 || input.targetRight > 0)) {
           this.eventBadgeEl.dataset.livePrompt = '1';
-          this.eventBadgeEl.textContent = 'SPACE — TILT ENGINES 20°';
+          this.eventBadgeEl.textContent = 'CUT BOTH ENGINES (1s)';
           this.eventBadgeEl.className = 'event-badge badge-damp-prompt';
         } else if (this.eventBadgeEl.dataset.livePrompt === '1') {
           this.eventBadgeEl.dataset.livePrompt = '0';

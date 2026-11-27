@@ -78,7 +78,6 @@ export interface InputSnapshot {
   targetRight: number;
   leftActiveCode: string | null;
   rightActiveCode: string | null;
-  spaceHeld: boolean;
 }
 
 export type LandingEventKind =
@@ -103,16 +102,16 @@ export interface PodTelemetry {
   clearance: number;
   isGrounded: boolean;
   airTime: number;
-  /** Normalized upward engine rotation [0..1], where 1.0 = ~40 degrees */
-  engineTilt: number;
+  /** Seconds both engines have been off continuously (need >= 1.0s for landing boost) */
+  enginesOffTime: number;
+  /** True once both engines have been off for at least 1 second */
+  coastReady: boolean;
   /** Active post-landing overdrive boost [0..1] */
   landingBoost: number;
   /** True when applying engine thrust high in the air (damaging hull) */
   airborneOverload: boolean;
   /** Estimated seconds until touchdown while descending (Infinity when grounded/ascending) */
   timeToImpact: number;
-  /** Multiplier [0..1] reflecting whether player stayed off throttle in mid-air */
-  coastDiscipline: number;
   hullIntegrity: number;
   cockpitYawOffset: number;
   cockpitRollOffset: number;

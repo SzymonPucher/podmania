@@ -32,30 +32,22 @@ export const POD_CONFIG = {
   slopePitchAlignRate: 9.0,
   airPitchNoseDropRate: 0.7,
 
-  // Engine Rotation (Space) & Landing Vector Boost
-  engineTiltMaxDeg: 20.0,
-  engineTiltUpRate: 6.8,
-  engineTiltDownRate: 6.0,
-  tiltedGroundDrag: 0.78,
-  tiltedAirDrag: 0.45,
-  tiltedQuadDragMult: 1.5,
+  // Air Coasting & Landing Ignition Boost
   airborneLinearDragMult: 0.22,
   airborneQuadDragMult: 0.22,
   airborneDriveScale: 0.08,
 
-  // Mid-Air Thrust Overload & Flare Timing Windows
+  // Mid-Air Thrust Overload & Pre-Touchdown Ignition Window
+  minEnginesOffSec: 1.0,
   takeoffThrustGraceSec: 0.25,
   highAirDamageClearance: 7.5,
   highAirThrustDamageRate: 22.0,
-  spaceRotateWindowSec: 0.82,
-  thrustFlareWindowSec: 0.38,
-  vectoredGroundLiftAccel: 46.0,
+  thrustFlareWindowSec: 0.42,
+  vectoredGroundLiftAccel: 42.0,
 
   // Landing Impact & Boost Rewards
   minAirTimeForLandingCheck: 0.30,
   safeImpactSpeed: 10.5,
-  spaceOnlySafeImpactSpeed: 12.5,
-  spaceOnlyDamageMult: 0.78,
   vectorBoostBaseAddMs: 19.0,
   vectorBoostBigJumpAddMs: 13.0,
   vectorBoostDurationSec: 1.85,
