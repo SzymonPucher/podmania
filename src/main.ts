@@ -82,7 +82,7 @@ class PodManiaApp {
       new THREE.Vector2(window.innerWidth, window.innerHeight),
       0.35,
       0.35,
-      0.88
+      1.05
     );
     this.composer.addPass(bloom);
     this.composer.addPass(new OutputPass());
@@ -127,6 +127,9 @@ class PodManiaApp {
     }
 
     this.activeMap = getMapById(mapId);
+    const biome = this.activeMap.biome ?? 'desert';
+    this.env.setBiome(biome);
+    this.podVfx.setBiomeDustColor(biome);
     this.track = new TrackBuilder(this.activeMap);
     this.checkpoints = new CheckpointSystem(this.track);
 

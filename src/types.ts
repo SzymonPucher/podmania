@@ -16,7 +16,16 @@ export type TrackFeature =
   | 'jump_lip'
   | 'chasm_floor'
   | 'landing_slope'
-  | 'finish_basin';
+  | 'finish_basin'
+  | 'ice_sheet'
+  | 'magma_vent'
+  | 'boost_pad'
+  | 'sand_dunes'
+  | 'ridge_split'
+  | 'bridge_deck'
+  | 'rough_scree';
+
+export type MapBiome = 'desert' | 'volcanic' | 'glacier' | 'skyway' | 'desert_geode';
 
 export interface TrackStationDef {
   pos: [number, number, number];
@@ -39,6 +48,7 @@ export interface MapDefinition {
   subtitle: string;
   description: string;
   playable: boolean;
+  biome?: MapBiome;
   unlockRequirement?: {
     mapId: string;
     minMedal: Exclude<MedalTier, 'none'>;

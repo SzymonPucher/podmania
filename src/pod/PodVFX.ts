@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { PodTelemetry } from '../types';
+import type { MapBiome, PodTelemetry } from '../types';
 
 interface Particle {
   active: boolean;
@@ -97,6 +97,18 @@ export class PodVFX {
     this.shockRing = new THREE.Mesh(ringGeo, ringMat);
     this.shockRing.visible = false;
     this.group.add(this.shockRing);
+  }
+
+  public setBiomeDustColor(biome: MapBiome): void {
+    const mat = this.dustMesh.material as THREE.MeshBasicMaterial;
+    const colors: Record<MapBiome, number> = {
+      desert: 0xd9a873,
+      volcanic: 0x573b36,
+      glacier: 0xdbeafe,
+      skyway: 0xe2e8f0,
+      desert_geode: 0xeab36b,
+    };
+    mat.color.setHex(colors[biome] ?? 0xd9a873);
   }
 
   public triggerShockwave(pos: THREE.Vector3, groundY: number): void {

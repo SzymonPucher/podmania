@@ -109,6 +109,7 @@ export class PodPhysics {
     const effRight = driveEnabled ? s.pRight * hullScale : 0;
 
     const horizSpeed = Math.hypot(s.vel.x, s.vel.z);
+    const currentFeature = track.findNearestSlice(s.pos.x, s.pos.z).feature;
 
     // 2. Differential Yaw & Heading
     const speedFactor =
@@ -146,18 +147,42 @@ export class PodPhysics {
     let vFwd = s.vel.x * this.tmpForward.x + s.vel.z * this.tmpForward.z;
     let vLat = s.vel.x * this.tmpRight.x + s.vel.z * this.tmpRight.z;
 
-    const driveAccel =
+    let driveAccel =
       (effLeft + effRight) * 0.5 * POD_CONFIG.maxForwardAccel * (s.isGrounded ? 1.0 : 0.35);
+
+    let terrainDragMult = 1.0;
+    let terrainGripMult = 1.0;
+    if (s.isGrounded) {
+      if (currentFeature === 'boost_pad' && driveEnabled) {
+        driveAccel += 26.0;
+        terrainDragMult = 0.8;
+        terrainGripMult = 1.35;
+      } else if (currentFeature === 'ice_sheet') {
+        terrainDragMult = 0.72;
+        terrainGripMult = 0.28;
+      } else if (currentFeature === 'sand_dunes') {
+        terrainDragMult = 1.2;
+        terrainGripMult = 0.85;
+      } else if (currentFeature === 'rough_scree') {
+        terrainDragMult = 1.28;
+        terrainGripMult = 0.9;
+      } else if (currentFeature === 'bridge_deck') {
+        terrainDragMult = 0.9;
+        terrainGripMult = 1.3;
+      } else if (currentFeature === 'magma_vent') {
+        driveAccel += 5.5;
+      }
+    }
 
     const damperGroundDrag =
       s.damperFiring && s.isGrounded ? POD_CONFIG.damperFlatGroundDrag : 0;
     const dragAccel =
-      (POD_CONFIG.linearDrag + damperGroundDrag) * vFwd +
+      (POD_CONFIG.linearDrag * terrainDragMult + damperGroundDrag) * vFwd +
       POD_CONFIG.quadDrag * vFwd * Math.abs(vFwd) +
       POD_CONFIG.slideSpeedScrub * Math.abs(vLat) * Math.sign(vFwd);
 
     const gripRate = s.isGrounded
-      ? POD_CONFIG.dirtLateralGrip + Math.abs(Math.sin(s.roll)) * POD_CONFIG.bankCarveBonus
+      ? (POD_CONFIG.dirtLateralGrip + Math.abs(Math.sin(s.roll)) * POD_CONFIG.bankCarveBonus) * terrainGripMult
       : 0.4;
 
     vFwd += (driveAccel - dragAccel) * dt;
@@ -295,6 +320,11 @@ export class PodPhysics {
             : 1.0;
         aHover = Math.max(0, rawHover) * taper;
       }
+    }
+
+    // Magma vent thermal updraft
+    if (currentFeature === 'magma_vent' && h < 18.0) {
+      aHover += 16.5 * (1 - h / 18.0);
     }
 
     s.vel.y += (aHover - POD_CONFIG.gravity) * dt;

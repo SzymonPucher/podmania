@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { GroundSample, MapDefinition, TrackFeature, TrackStationDef } from '../types';
+import type { GroundSample, MapBiome, MapDefinition, TrackFeature, TrackStationDef } from '../types';
 
 export interface SampledSlice {
   distance: number;
@@ -47,17 +47,89 @@ function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
+interface BiomePalette {
+  groove: number;
+  dirtEdge: number;
+  terra: number;
+  sandstone: number;
+  rim: number;
+  caveDark: number;
+  caveInner: number;
+  crystalColors: [number, number];
+  propColor: number;
+}
+
+const BIOME_PALETTES: Record<MapBiome, BiomePalette> = {
+  desert: {
+    groove: 0xb87c4c,
+    dirtEdge: 0xd49b62,
+    terra: 0xa85a3a,
+    sandstone: 0xc9834f,
+    rim: 0xdfad7a,
+    caveDark: 0x4a3b34,
+    caveInner: 0x634b3d,
+    crystalColors: [0xf59e0b, 0x38bdf8],
+    propColor: 0xb76f45,
+  },
+  volcanic: {
+    groove: 0x2b2124,
+    dirtEdge: 0x4a2c2a,
+    terra: 0x3a1816,
+    sandstone: 0x6e261b,
+    rim: 0x8c3522,
+    caveDark: 0x1c1214,
+    caveInner: 0x381916,
+    crystalColors: [0xff5500, 0xfbbf24],
+    propColor: 0x3b1d1a,
+  },
+  glacier: {
+    groove: 0x5ba3c9,
+    dirtEdge: 0x9cc5e0,
+    terra: 0x2c7da0,
+    sandstone: 0x629cc4,
+    rim: 0xb0d3e8,
+    caveDark: 0x164e63,
+    caveInner: 0x0e7490,
+    crystalColors: [0x22d3ee, 0x93c5fd],
+    propColor: 0x4ea8c9,
+  },
+  skyway: {
+    groove: 0x64748b,
+    dirtEdge: 0x8fa0b5,
+    terra: 0x475569,
+    sandstone: 0x8f7552,
+    rim: 0xb39a74,
+    caveDark: 0x334155,
+    caveInner: 0x475569,
+    crystalColors: [0x38bdf8, 0xfbbf24],
+    propColor: 0x64748b,
+  },
+  desert_geode: {
+    groove: 0xb07c3e,
+    dirtEdge: 0xc99c5d,
+    terra: 0x7c3e24,
+    sandstone: 0xab6c37,
+    rim: 0xc9a56e,
+    caveDark: 0x2e1065,
+    caveInner: 0x4c1d95,
+    crystalColors: [0xc084fc, 0x2dd4bf],
+    propColor: 0x92400e,
+  },
+};
+
 export class TrackBuilder {
   public readonly group = new THREE.Group();
   public readonly slices: SampledSlice[] = [];
   public readonly checkpoints: CheckpointMarkerData[] = [];
   public readonly startSlice!: SampledSlice;
   public readonly totalLength: number;
+  public readonly biome: MapBiome;
 
   private readonly groundGrid = new Map<string, Tri2D[]>();
   private readonly ceilingGrid = new Map<string, Tri2D[]>();
 
   constructor(map: MapDefinition) {
+    this.biome = map.biome ?? 'desert';
     const curvePoints = map.stations.map((s) => new THREE.Vector3(...s.pos));
     const curve = new THREE.CatmullRomCurve3(curvePoints, false, 'catmullrom', 0.35);
 
@@ -91,6 +163,7 @@ export class TrackBuilder {
     this.buildCheckpointList(map.stations, curve, approxLen);
     this.buildTerrainMesh();
     this.buildCaveCeilings();
+    this.buildFeatureProps();
     this.buildDecorativeProps();
   }
 
@@ -260,22 +333,41 @@ export class TrackBuilder {
     const positions = new Float32Array(rows * cols * 3);
     const colors = new Float32Array(rows * cols * 3);
 
-    const colGroove = new THREE.Color(0xb87c4c);
-    const colDirtEdge = new THREE.Color(0xd49b62);
-    const colTerra = new THREE.Color(0xa85a3a);
-    const colSandstone = new THREE.Color(0xc9834f);
-    const colRim = new THREE.Color(0xdfad7a);
+    const pal = BIOME_PALETTES[this.biome];
+    const colGroove = new THREE.Color(pal.groove);
+    const colDirtEdge = new THREE.Color(pal.dirtEdge);
+    const colTerra = new THREE.Color(pal.terra);
+    const colSandstone = new THREE.Color(pal.sandstone);
+    const colRim = new THREE.Color(pal.rim);
+
+    // Feature-specific accent colors
+    const colIceCore = new THREE.Color(0x9bcce3);
+    const colIceEdge = new THREE.Color(0x3b8db8);
+    const colMagmaGlow = new THREE.Color(0xff5500);
+    const colBasalt = new THREE.Color(0x1f1618);
+    const colBoostDeck = new THREE.Color(0x1e293b);
+    const colBoostRail = new THREE.Color(0x38bdf8);
+    const colDuneCrest = new THREE.Color(0xc99c55);
+    const colDuneTrough = new THREE.Color(0x9e672b);
+    const colRidgeSpine = new THREE.Color(0x8c3b2b);
+    const colBridgeDeck = new THREE.Color(0x475569);
+    const colBridgeEdge = new THREE.Color(0xc78114);
+    const colScreeDark = new THREE.Color(0x5c4738);
     const tmpCol = new THREE.Color();
 
     for (let r = 0; r < rows; r++) {
       const s = this.slices[r];
       const halfW = s.canyonWidth * 0.5;
-      const flatRamp = s.feature === 'jump_lip' || s.feature === 'landing_slope';
+      const flatRamp =
+        s.feature === 'jump_lip' ||
+        s.feature === 'landing_slope' ||
+        s.feature === 'boost_pad' ||
+        s.feature === 'bridge_deck';
       const isChasm = s.feature === 'chasm_floor';
 
       for (let c = 0; c < cols; c++) {
         const latNorm = (c / lateralSteps) * 2 - 1; // -1 to +1
-        // Map [-1, 1] non-linearly so vertices concentrate in the rideable dirt floor
+        // Map [-1, 1] non-linearly so vertices concentrate in the rideable floor
         const absN = Math.abs(latNorm);
         let d = 0;
         if (absN <= 0.55) {
@@ -293,19 +385,70 @@ export class TrackBuilder {
         let wy = s.center.y;
         if (absD <= halfW) {
           const uFloor = absD / halfW;
-          // Smooth concave dirt trough + banking
-          const trough = uFloor * uFloor * 1.4;
           const bank = d * Math.tan(s.bankingRad);
-          const floorJitter = flatRamp || isChasm ? 0 : noise * 0.2;
-          wy += trough + bank + floorJitter;
 
-          tmpCol.copy(colGroove).lerp(colDirtEdge, Math.pow(uFloor, 1.3));
+          if (s.feature === 'ice_sheet') {
+            const trough = uFloor * uFloor * 0.65;
+            wy += trough + bank;
+            tmpCol.copy(colIceCore).lerp(colIceEdge, Math.pow(uFloor, 1.5));
+          } else if (s.feature === 'magma_vent') {
+            // Central molten fissure channel with raised dark basalt ledges
+            const fissure = uFloor < 0.42 ? -0.45 * (1 - uFloor / 0.42) : uFloor * uFloor * 1.1;
+            wy += fissure + bank + noise * 0.12;
+            const glowT = Math.max(0, 1 - uFloor / 0.48);
+            tmpCol.copy(colBasalt).lerp(colMagmaGlow, Math.pow(glowT, 1.4));
+          } else if (s.feature === 'boost_pad') {
+            const trough = uFloor * uFloor * 0.4;
+            wy += trough + bank;
+            const onRail = uFloor < 0.28 || (uFloor > 0.72 && uFloor < 0.84);
+            tmpCol.copy(onRail ? colBoostRail : colBoostDeck);
+          } else if (s.feature === 'sand_dunes') {
+            // Rolling sinusoidal dune waves
+            const duneWave = Math.sin(s.distance * 0.11 + d * 0.08) * 1.15;
+            const trough = uFloor * uFloor * 1.2;
+            wy += trough + bank + duneWave + noise * 0.15;
+            const crestT = duneWave * 0.5 + 0.5;
+            tmpCol.copy(colDuneTrough).lerp(colDuneCrest, crestT);
+          } else if (s.feature === 'ridge_split') {
+            // Raised central rock spine creating two carved side channels
+            const spine = Math.max(0, 1 - uFloor / 0.34);
+            const spineH = Math.pow(spine, 1.6) * 3.6;
+            const trough = uFloor * uFloor * 1.3;
+            wy += trough + spineH + bank + noise * 0.22;
+            tmpCol.copy(colGroove).lerp(colDirtEdge, uFloor);
+            if (spine > 0.05) {
+              tmpCol.lerp(colRidgeSpine, spine * 0.85);
+            }
+          } else if (s.feature === 'bridge_deck') {
+            wy += bank;
+            tmpCol.copy(uFloor > 0.84 ? colBridgeEdge : colBridgeDeck);
+          } else if (s.feature === 'rough_scree') {
+            const trough = uFloor * uFloor * 1.5;
+            const boulders = Math.sin(wx * 0.35) * Math.cos(wz * 0.35) * 0.55;
+            wy += trough + bank + noise * 0.7 + boulders;
+            tmpCol.copy(colScreeDark).lerp(colDirtEdge, 0.35 + noise * 0.25);
+          } else {
+            // Smooth concave dirt trough + banking
+            const trough = uFloor * uFloor * 1.4;
+            const floorJitter = flatRamp || isChasm ? 0 : noise * 0.2;
+            wy += trough + bank + floorJitter;
+            tmpCol.copy(colGroove).lerp(colDirtEdge, Math.pow(uFloor, 1.3));
+          }
         } else {
           const wallD = absD - halfW;
           const bank = Math.sign(d) * halfW * Math.tan(s.bankingRad);
-          if (wallD <= 24) {
+          if (s.feature === 'bridge_deck') {
+            // Elevated skyway curb then dramatic drop-off into the clouds
+            if (wallD <= 3.5) {
+              wy += bank + (wallD / 3.5) * 1.8;
+              tmpCol.copy(colBridgeEdge);
+            } else {
+              wy += bank + 1.8 - (wallD - 3.5) * 1.35 + noise * 1.2;
+              tmpCol.copy(colTerra).lerp(colRim, 0.5);
+            }
+          } else if (wallD <= 24) {
             const wFrac = wallD / 24;
-            // 4 jagged sandstone strata steps
+            // 4 jagged strata steps
             const strata = Math.floor(wFrac * 4) * 0.12 + wFrac * 0.88;
             wy += 1.4 + bank + strata * s.wallHeight + noise * 2.2;
             tmpCol
@@ -384,10 +527,11 @@ export class TrackBuilder {
     const rows = endIdx - startIdx + 1;
     if (rows < 2) return;
 
+    const pal = BIOME_PALETTES[this.biome];
     const positions = new Float32Array(rows * cols * 3);
     const colors = new Float32Array(rows * cols * 3);
-    const colDarkRock = new THREE.Color(0x4a3b34);
-    const colInnerRock = new THREE.Color(0x634b3d);
+    const colDarkRock = new THREE.Color(pal.caveDark);
+    const colInnerRock = new THREE.Color(pal.caveInner);
     const tmp = new THREE.Color();
 
     for (let r = 0; r < rows; r++) {
@@ -424,7 +568,7 @@ export class TrackBuilder {
           s.center.y + 4.5,
           s.center.z + s.right.z * side * (s.canyonWidth * 0.48)
         );
-        const crystalColor = (r / 7) % 3 === 0 ? 0x38bdf8 : 0xf59e0b;
+        const crystalColor = (r / 7) % 3 === 0 ? pal.crystalColors[1] : pal.crystalColors[0];
         const crystalGeo = new THREE.OctahedronGeometry(1.1, 0);
         crystalGeo.scale(0.6, 1.8, 0.6);
         const crystalMat = new THREE.MeshStandardMaterial({
@@ -478,17 +622,96 @@ export class TrackBuilder {
     this.group.add(mesh);
   }
 
+  private buildFeatureProps(): void {
+    const boostMat = new THREE.MeshStandardMaterial({
+      color: 0x38bdf8,
+      emissive: 0x38bdf8,
+      emissiveIntensity: 2.2,
+      roughness: 0.2,
+    });
+    const magmaMat = new THREE.MeshStandardMaterial({
+      color: 0xff5500,
+      emissive: 0xff4500,
+      emissiveIntensity: 2.4,
+      roughness: 0.4,
+    });
+    const pylonMat = new THREE.MeshStandardMaterial({
+      color: 0x334155,
+      emissive: 0xf59e0b,
+      emissiveIntensity: 1.1,
+      roughness: 0.3,
+    });
+    const iceMat = new THREE.MeshStandardMaterial({
+      color: 0xbae6fd,
+      emissive: 0x0284c7,
+      emissiveIntensity: 0.45,
+      flatShading: true,
+      roughness: 0.2,
+    });
+
+    for (let i = 4; i < this.slices.length - 4; i++) {
+      const s = this.slices[i];
+      const yaw = Math.atan2(-s.tangent.x, -s.tangent.z);
+
+      if (s.feature === 'boost_pad' && i % 4 === 0) {
+        const barGeo = new THREE.BoxGeometry(s.canyonWidth * 0.42, 0.18, 1.4);
+        const bar = new THREE.Mesh(barGeo, boostMat);
+        bar.position.set(s.center.x, s.center.y + 0.14, s.center.z);
+        bar.rotation.y = yaw;
+        this.group.add(bar);
+      } else if (s.feature === 'magma_vent' && i % 7 === 0) {
+        const poolGeo = new THREE.CylinderGeometry(3.2, 3.6, 0.2, 8);
+        const pool = new THREE.Mesh(poolGeo, magmaMat);
+        pool.position.set(s.center.x, s.center.y - 0.32, s.center.z);
+        this.group.add(pool);
+
+        if (i % 14 === 0) {
+          const light = new THREE.PointLight(0xff5500, 22, 34, 1.6);
+          light.position.set(s.center.x, s.center.y + 2.5, s.center.z);
+          this.group.add(light);
+        }
+      } else if (s.feature === 'bridge_deck' && i % 5 === 0) {
+        const halfW = s.canyonWidth * 0.5 + 0.6;
+        const pylonGeo = new THREE.BoxGeometry(0.65, 2.8, 0.65);
+        for (const side of [-1, 1]) {
+          const pylon = new THREE.Mesh(pylonGeo, pylonMat);
+          pylon.position.set(
+            s.center.x + s.right.x * side * halfW,
+            s.center.y + 1.4,
+            s.center.z + s.right.z * side * halfW
+          );
+          pylon.rotation.y = yaw;
+          this.group.add(pylon);
+        }
+      } else if (s.feature === 'ice_sheet' && i % 11 === 0) {
+        const side = i % 22 === 0 ? 1 : -1;
+        const offset = s.canyonWidth * 0.5 + 10 + hash2D(i, 5) * 10;
+        const shardGeo = new THREE.OctahedronGeometry(3.2, 0);
+        shardGeo.scale(0.65, 2.6, 0.65);
+        const shard = new THREE.Mesh(shardGeo, iceMat);
+        shard.position.set(
+          s.center.x + s.right.x * side * offset,
+          s.center.y + 6.5,
+          s.center.z + s.right.z * side * offset
+        );
+        shard.rotation.set(0.15 * side, hash2D(i, 9) * Math.PI, -0.2 * side);
+        this.group.add(shard);
+      }
+    }
+  }
+
   private buildDecorativeProps(): void {
+    const pal = BIOME_PALETTES[this.biome];
     const rockMat = new THREE.MeshStandardMaterial({
-      color: 0xb76f45,
+      color: pal.propColor,
       flatShading: true,
       roughness: 0.9,
     });
 
-    // Place towering sandstone monoliths & arches outside rideable corridor
+    // Place towering monoliths & spires outside rideable corridor
     for (let i = 15; i < this.slices.length - 10; i += 18) {
       const s = this.slices[i];
-      if (s.feature === 'cave') continue;
+      if (s.feature === 'cave' || s.feature === 'bridge_deck') continue;
       const side = (i % 36 === 0) ? 1 : -1;
       const offset = s.canyonWidth * 0.5 + 22 + hash2D(i, 3) * 16;
 
