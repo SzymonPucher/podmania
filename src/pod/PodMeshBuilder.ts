@@ -372,7 +372,95 @@ export class PodMeshBuilder {
     }
   }
 
+  private createCabinDustTextures(): {
+    dustColorTex: THREE.CanvasTexture;
+    dustRoughnessTex: THREE.CanvasTexture;
+  } {
+    const size = 256;
+    const colorCanvas = document.createElement('canvas');
+    colorCanvas.width = size;
+    colorCanvas.height = size;
+    const cctx = colorCanvas.getContext('2d')!;
+
+    const roughCanvas = document.createElement('canvas');
+    roughCanvas.width = size;
+    roughCanvas.height = size;
+    const rctx = roughCanvas.getContext('2d')!;
+
+    // Deterministic PRNG for consistent desert weathering
+    let seed = 4219;
+    const rand = () => {
+      seed = (seed * 16807) % 2147483647;
+      return (seed - 1) / 2147483646;
+    };
+
+    // Base warm brushed steel + medium roughness
+    cctx.fillStyle = '#adb6c2';
+    cctx.fillRect(0, 0, size, size);
+    rctx.fillStyle = '#686868';
+    rctx.fillRect(0, 0, size, size);
+
+    // Subtle brushed metal streaks & panel wear
+    for (let i = 0; i < 220; i++) {
+      const y = rand() * size;
+      const len = 30 + rand() * 110;
+      const x = rand() * size;
+      const bright = rand() > 0.5;
+      cctx.fillStyle = bright ? 'rgba(225, 232, 240, 0.08)' : 'rgba(50, 56, 66, 0.09)';
+      cctx.fillRect(x, y, len, 1 + rand() * 2);
+    }
+
+    // Desert sand/ochre dust patches & windblown grime streaks
+    for (let i = 0; i < 160; i++) {
+      const x = rand() * size;
+      const y = rand() * size;
+      const rx = 8 + rand() * 34;
+      const ry = 4 + rand() * 16;
+      const alpha = 0.08 + rand() * 0.22;
+      const warm = rand() > 0.35;
+      cctx.fillStyle = warm
+        ? `rgba(196, 152, 102, ${alpha.toFixed(2)})`
+        : `rgba(154, 114, 76, ${alpha.toFixed(2)})`;
+      cctx.beginPath();
+      cctx.ellipse(x, y, rx, ry, (rand() - 0.5) * 0.4, 0, Math.PI * 2);
+      cctx.fill();
+
+      // Dusty spots become much rougher (matte)
+      const rAlpha = 0.22 + rand() * 0.45;
+      rctx.fillStyle = `rgba(235, 235, 235, ${rAlpha.toFixed(2)})`;
+      rctx.beginPath();
+      rctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+      rctx.fill();
+    }
+
+    // Fine grit speckles
+    for (let i = 0; i < 650; i++) {
+      const x = rand() * size;
+      const y = rand() * size;
+      const s = 1 + rand() * 2.2;
+      cctx.fillStyle =
+        rand() > 0.3 ? 'rgba(188, 146, 98, 0.35)' : 'rgba(82, 62, 44, 0.28)';
+      cctx.fillRect(x, y, s, s);
+      rctx.fillStyle = 'rgba(245, 245, 245, 0.5)';
+      rctx.fillRect(x, y, s, s);
+    }
+
+    const dustColorTex = new THREE.CanvasTexture(colorCanvas);
+    dustColorTex.wrapS = THREE.RepeatWrapping;
+    dustColorTex.wrapT = THREE.RepeatWrapping;
+    dustColorTex.repeat.set(2, 2);
+    dustColorTex.colorSpace = THREE.SRGBColorSpace;
+
+    const dustRoughnessTex = new THREE.CanvasTexture(roughCanvas);
+    dustRoughnessTex.wrapS = THREE.RepeatWrapping;
+    dustRoughnessTex.wrapT = THREE.RepeatWrapping;
+    dustRoughnessTex.repeat.set(2, 2);
+
+    return { dustColorTex, dustRoughnessTex };
+  }
+
   private createMaterials() {
+    const { dustColorTex, dustRoughnessTex } = this.createCabinDustTextures();
     return {
       steel: new THREE.MeshStandardMaterial({
         color: 0x9aa4b0,
@@ -400,9 +488,29 @@ export class PodMeshBuilder {
         roughness: 0.45,
       }),
       cockpitSilver: new THREE.MeshStandardMaterial({
-        color: 0xaab4c0,
-        metalness: 0.78,
-        roughness: 0.34,
+        color: 0xd4ccbe,
+        map: dustColorTex,
+        roughnessMap: dustRoughnessTex,
+        metalness: 0.62,
+        roughness: 0.72,
+      }),
+      cabinOrange: new THREE.MeshStandardMaterial({
+        color: 0xea580c,
+        roughnessMap: dustRoughnessTex,
+        metalness: 0.36,
+        roughness: 0.62,
+      }),
+      cabinSlate: new THREE.MeshStandardMaterial({
+        color: 0x4c5d73,
+        roughnessMap: dustRoughnessTex,
+        metalness: 0.66,
+        roughness: 0.58,
+      }),
+      cabinDust: new THREE.MeshStandardMaterial({
+        color: 0xb8966e,
+        roughnessMap: dustRoughnessTex,
+        metalness: 0.14,
+        roughness: 0.92,
       }),
       hudGlass: new THREE.MeshPhysicalMaterial({
         color: 0x070d18,
@@ -925,9 +1033,14 @@ export class PodMeshBuilder {
     });
     noseCapGeo.rotateX(Math.PI / 2);
     noseCapGeo.translate(0, 0.248, 0);
-    const noseCapMesh = new THREE.Mesh(noseCapGeo, mats.gunmetal);
+    const noseCapMesh = new THREE.Mesh(noseCapGeo, mats.cabinSlate);
     noseCapMesh.castShadow = true;
     this.cockpitGroup.add(noseCapMesh);
+
+    // Bold racing-orange nose chevron plate
+    const noseOrangeGeo = new THREE.BoxGeometry(0.18, 0.032, 0.44);
+    noseOrangeGeo.translate(0, 0.272, -1.04);
+    this.cockpitGroup.add(new THREE.Mesh(noseOrangeGeo, mats.cabinOrange));
 
     for (const s of [-1, 1] as const) {
       // Twin cobalt-blue nose-to-canopy racing stripes
@@ -936,11 +1049,17 @@ export class PodMeshBuilder {
       frontStripeGeo.translate(s * 0.14, 0.268, -0.78);
       this.cockpitGroup.add(new THREE.Mesh(frontStripeGeo, mats.blue));
 
-      // Crisp amber-yellow forward trim slash near canopy sill
-      const amberTrimGeo = new THREE.BoxGeometry(0.075, 0.028, 0.28, 2, 1, 4);
-      amberTrimGeo.rotateY(s * -0.18);
-      amberTrimGeo.translate(s * 0.28, 0.258, -0.46);
-      this.cockpitGroup.add(new THREE.Mesh(amberTrimGeo, mats.yellow));
+      // Crisp racing-orange & amber forward trim slashes near canopy sill
+      const orangeTrimGeo = new THREE.BoxGeometry(0.08, 0.03, 0.32, 2, 1, 4);
+      orangeTrimGeo.rotateY(s * -0.18);
+      orangeTrimGeo.translate(s * 0.28, 0.258, -0.46);
+      this.cockpitGroup.add(new THREE.Mesh(orangeTrimGeo, mats.cabinOrange));
+
+      // Weathered desert-dust lower flank skirt strips (where canyon dust builds up)
+      const dustSkirtGeo = new THREE.BoxGeometry(0.06, 0.075, 1.38);
+      dustSkirtGeo.rotateY(s * -0.04);
+      dustSkirtGeo.translate(s * 0.46, -0.055, 0.12);
+      this.cockpitGroup.add(new THREE.Mesh(dustSkirtGeo, mats.cabinDust));
     }
 
     // 4. High-poly beveled side intake cheeks & nose tether shackles (no wings/fins; grouped for breakup debris)
@@ -956,7 +1075,7 @@ export class PodMeshBuilder {
       const cheekGroup = new THREE.Group();
       cheekGroup.position.set(s * 0.44, 0.06, 0.02);
 
-      // Smoothly beveled side intake shroud
+      // Smoothly beveled weathered blue-slate side intake shroud
       const podGeo = new THREE.ExtrudeGeometry(cheekProfile, {
         depth: 0.84,
         curveSegments: 16,
@@ -970,7 +1089,7 @@ export class PodMeshBuilder {
       if (s < 0) podGeo.scale(-1, 1, 1);
       podGeo.rotateZ(s * -0.18);
       podGeo.rotateY(s * -0.05);
-      const podMesh = new THREE.Mesh(podGeo, mats.cockpitSilver);
+      const podMesh = new THREE.Mesh(podGeo, mats.cabinSlate);
       podMesh.castShadow = true;
       cheekGroup.add(podMesh);
 
@@ -984,19 +1103,25 @@ export class PodMeshBuilder {
         const louverGeo = new THREE.BoxGeometry(0.11, 0.014, 0.05);
         louverGeo.rotateZ(s * -0.18);
         louverGeo.translate(s * 0.02, v * 0.036, -0.455);
-        cheekGroup.add(new THREE.Mesh(louverGeo, mats.steel));
+        cheekGroup.add(new THREE.Mesh(louverGeo, mats.copper));
       }
 
-      // Cobalt-blue & amber-yellow side flank stripes
-      const sideBlueGeo = new THREE.BoxGeometry(0.036, 0.095, 0.56);
+      // Bold racing-orange upper intake armor plate
+      const sideOrangeGeo = new THREE.BoxGeometry(0.042, 0.085, 0.52);
+      sideOrangeGeo.rotateZ(s * -0.18);
+      sideOrangeGeo.translate(s * 0.108, 0.042, -0.06);
+      cheekGroup.add(new THREE.Mesh(sideOrangeGeo, mats.cabinOrange));
+
+      // Cobalt-blue rear flank stripe + dusty sand-scuffed lower lip
+      const sideBlueGeo = new THREE.BoxGeometry(0.036, 0.065, 0.34);
       sideBlueGeo.rotateZ(s * -0.18);
-      sideBlueGeo.translate(s * 0.105, 0.015, 0.08);
+      sideBlueGeo.translate(s * 0.106, -0.032, 0.22);
       cheekGroup.add(new THREE.Mesh(sideBlueGeo, mats.blue));
 
-      const sideYellowGeo = new THREE.BoxGeometry(0.036, 0.065, 0.22);
-      sideYellowGeo.rotateZ(s * -0.18);
-      sideYellowGeo.translate(s * 0.108, -0.04, -0.24);
-      cheekGroup.add(new THREE.Mesh(sideYellowGeo, mats.yellow));
+      const sideDustGeo = new THREE.BoxGeometry(0.05, 0.045, 0.78);
+      sideDustGeo.rotateZ(s * -0.18);
+      sideDustGeo.translate(s * 0.095, -0.095, 0.02);
+      cheekGroup.add(new THREE.Mesh(sideDustGeo, mats.cabinDust));
 
       this.cockpitGroup.add(cheekGroup);
       if (s < 0) this.cockpitLeftWingGroup = cheekGroup;
@@ -1043,7 +1168,7 @@ export class PodMeshBuilder {
     rearBowGeo.translate(0, 0.24, 0.22);
     this.cockpitGroup.add(new THREE.Mesh(rearBowGeo, mats.gunmetal));
 
-    // 6. High-poly beveled dorsal spine fairing tapering cleanly behind canopy to stern (NO V-tail wings)
+    // 6. High-poly beveled dorsal spine fairing with orange crest, copper rail & blue stripes
     const spineProfile = new THREE.Shape();
     spineProfile.moveTo(0.42, 0.20);
     spineProfile.lineTo(0.46, 0.52);
@@ -1064,24 +1189,29 @@ export class PodMeshBuilder {
     });
     spineGeo.rotateY(-Math.PI / 2);
     spineGeo.translate(0.17, 0, 0);
-    const spineMesh = new THREE.Mesh(spineGeo, mats.cockpitSilver);
+    const spineMesh = new THREE.Mesh(spineGeo, mats.cabinSlate);
     spineMesh.castShadow = true;
     this.cockpitGroup.add(spineMesh);
 
-    // Twin cobalt-blue dorsal racing stripes + subtle center spine ridge along rear deck
-    const centerRidgeGeo = new THREE.BoxGeometry(0.05, 0.032, 0.64);
+    // Bold racing-orange dorsal hood & copper center ridge rail along rear deck
+    const dorsalOrangeGeo = new THREE.BoxGeometry(0.22, 0.036, 0.48);
+    dorsalOrangeGeo.rotateX(0.38);
+    dorsalOrangeGeo.translate(0, 0.44, 0.78);
+    this.cockpitGroup.add(new THREE.Mesh(dorsalOrangeGeo, mats.cabinOrange));
+
+    const centerRidgeGeo = new THREE.BoxGeometry(0.055, 0.038, 0.66);
     centerRidgeGeo.rotateX(0.38);
-    centerRidgeGeo.translate(0, 0.41, 0.88);
-    this.cockpitGroup.add(new THREE.Mesh(centerRidgeGeo, mats.gunmetal));
+    centerRidgeGeo.translate(0, 0.43, 0.88);
+    this.cockpitGroup.add(new THREE.Mesh(centerRidgeGeo, mats.copper));
 
     for (const s of [-1, 1] as const) {
-      const rearStripeGeo = new THREE.BoxGeometry(0.085, 0.028, 0.62);
+      const rearStripeGeo = new THREE.BoxGeometry(0.08, 0.028, 0.58);
       rearStripeGeo.rotateX(0.38);
-      rearStripeGeo.translate(s * 0.115, 0.39, 0.88);
+      rearStripeGeo.translate(s * 0.13, 0.385, 0.90);
       this.cockpitGroup.add(new THREE.Mesh(rearStripeGeo, mats.blue));
     }
 
-    // 7. Twin canted V-tail upper stabilizer fins & compact lower ventral fins (beveled high-poly)
+    // 7. Twin canted V-tail upper stabilizer fins & compact lower ventral fins (varied orange/blue/dust trim)
     const upperFinShape = new THREE.Shape();
     upperFinShape.moveTo(0.0, 0.0);    // front root
     upperFinShape.lineTo(0.68, 0.0);   // rear root
@@ -1117,11 +1247,20 @@ export class PodMeshBuilder {
       uFinMesh.castShadow = true;
       upperFinGroup.add(uFinMesh);
 
-      // Cobalt-blue leading-edge stripe along upper fin
-      const uStripeGeo = new THREE.BoxGeometry(0.066, 0.64, 0.14);
+      // Bold racing-orange fin tip accent & cobalt-blue leading-edge stripe
+      const uTipOrangeGeo = new THREE.BoxGeometry(0.068, 0.16, 0.30);
+      uTipOrangeGeo.translate(0, 0.62, 0.74);
+      upperFinGroup.add(new THREE.Mesh(uTipOrangeGeo, mats.cabinOrange));
+
+      const uStripeGeo = new THREE.BoxGeometry(0.066, 0.52, 0.13);
       uStripeGeo.rotateX(0.62);
-      uStripeGeo.translate(0, 0.36, 0.44);
+      uStripeGeo.translate(0, 0.30, 0.39);
       upperFinGroup.add(new THREE.Mesh(uStripeGeo, mats.blue));
+
+      // Dusty sand-weathered fin root collar
+      const uRootDustGeo = new THREE.BoxGeometry(0.072, 0.11, 0.56);
+      uRootDustGeo.translate(0, 0.05, 0.34);
+      upperFinGroup.add(new THREE.Mesh(uRootDustGeo, mats.cabinDust));
       this.cockpitGroup.add(upperFinGroup);
 
       // Compact lower ventral stabilizer fin
@@ -1138,18 +1277,18 @@ export class PodMeshBuilder {
       });
       lFinGeo.rotateY(-Math.PI / 2);
       lFinGeo.translate(0.014, 0, 0);
-      const lFinMesh = new THREE.Mesh(lFinGeo, mats.cockpitSilver);
+      const lFinMesh = new THREE.Mesh(lFinGeo, mats.cabinSlate);
       lFinMesh.castShadow = true;
       lowerFinGroup.add(lFinMesh);
 
-      const lStripeGeo = new THREE.BoxGeometry(0.052, 0.28, 0.11);
+      const lStripeGeo = new THREE.BoxGeometry(0.052, 0.24, 0.11);
       lStripeGeo.rotateX(-0.46);
       lStripeGeo.translate(0, -0.17, 0.34);
-      lowerFinGroup.add(new THREE.Mesh(lStripeGeo, mats.blue));
+      lowerFinGroup.add(new THREE.Mesh(lStripeGeo, mats.cabinOrange));
       this.cockpitGroup.add(lowerFinGroup);
     }
 
-    // 8. Clean closed stealth stern bezel (ZERO rear thruster, ZERO rear light strips)
+    // 8. Clean closed stealth stern bezel with weathered dust & orange corner plates (ZERO thruster/lights)
     const sternShape = new THREE.Shape();
     sternShape.moveTo(-0.22, -0.09);
     sternShape.lineTo(0.22, -0.09);
@@ -1165,6 +1304,16 @@ export class PodMeshBuilder {
     });
     sternBezelGeo.translate(0, 0.06, 1.27);
     this.cockpitGroup.add(new THREE.Mesh(sternBezelGeo, mats.gunmetal));
+
+    const sternDustPlateGeo = new THREE.BoxGeometry(0.36, 0.05, 0.03);
+    sternDustPlateGeo.translate(0, -0.015, 1.325);
+    this.cockpitGroup.add(new THREE.Mesh(sternDustPlateGeo, mats.cabinDust));
+
+    for (const s of [-1, 1] as const) {
+      const sternOrangeTabGeo = new THREE.BoxGeometry(0.09, 0.075, 0.032);
+      sternOrangeTabGeo.translate(s * 0.14, 0.09, 1.325);
+      this.cockpitGroup.add(new THREE.Mesh(sternOrangeTabGeo, mats.cabinOrange));
+    }
 
     // 8. Compact centered under-belly cyan repulsor hover pad (smooth rounded-octagonal emitter)
     const repulsorHousingGeo = new THREE.CylinderGeometry(0.22, 0.24, 0.055, 24);
