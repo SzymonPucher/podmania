@@ -12,9 +12,9 @@ export class ChaseCamera {
     const fwdX = -Math.sin(t.yaw);
     const fwdZ = -Math.cos(t.yaw);
     this.currentPos.set(
-      t.pos.x - fwdX * 17.9,
-      t.pos.y + 5.2,
-      t.pos.z - fwdZ * 17.9
+      t.pos.x - fwdX * 12.6,
+      t.pos.y + 4.6,
+      t.pos.z - fwdZ * 12.6
     );
     this.currentLook.set(
       t.pos.x + fwdX * 14.0,
@@ -39,9 +39,9 @@ export class ChaseCamera {
     const dropLook = THREE.MathUtils.clamp(t.vel.y * 0.14, -4.5, 2.5);
 
     this.desiredPos.set(
-      t.pos.x - fwdX * 17.7 + rightX * latOffset,
-      t.pos.y + 5.15 - dropLook * 0.25,
-      t.pos.z - fwdZ * 17.7 + rightZ * latOffset
+      t.pos.x - fwdX * 12.4 + rightX * latOffset,
+      t.pos.y + 4.55 - dropLook * 0.25,
+      t.pos.z - fwdZ * 12.4 + rightZ * latOffset
     );
 
     this.desiredLook.set(

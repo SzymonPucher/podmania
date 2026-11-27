@@ -24,7 +24,7 @@ const PLASMA_SEGMENTS = 14;
 const CABLE_RINGS = 20;
 const CABLE_SIDES = 6;
 const CABLE_RADIUS = 0.028;
-const COCKPIT_BASE_Z = 10.65;
+const COCKPIT_BASE_Z = 5.325;
 
 export class PodMeshBuilder {
   public readonly podRoot = new THREE.Group();
@@ -738,7 +738,7 @@ export class PodMeshBuilder {
   ): void {
     // Midpoint sags slightly at rest, pulls taut at high speed
     const tautness = Math.min(1, speedMs / 65);
-    const sag = THREE.MathUtils.lerp(0.45, 0.06, tautness);
+    const sag = THREE.MathUtils.lerp(0.32, 0.05, tautness);
     this.tmpMid.copy(start).lerp(end, 0.5);
     this.tmpMid.y -= sag;
 
