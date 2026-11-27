@@ -59,6 +59,7 @@ export const POD_CONFIG = {
   coolRate30: 10.0,
   coolRateIdle: 20.0,
   overheatRecoverThreshold: 70.0,
+  overheatHullDamage: 10.0,
 
   // Wall Collision
   wallCollisionRadius: 2.1,

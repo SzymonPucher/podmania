@@ -343,6 +343,16 @@ class PodManiaApp {
           this.audio.playImpact(0.3);
         }
 
+        if (st.lastOverheatDamage > 0) {
+          this.podVfx.triggerSparks(st.pos, 24);
+          this.chaseCam.addTrauma(0.35);
+          this.hud.showEventBadge(
+            `ENGINE OVERHEAT -${Math.round(st.lastOverheatDamage)}%`,
+            'hard_impact'
+          );
+          this.audio.playImpact(0.35);
+        }
+
         if (allowDrive && st.hullIntegrity <= 0) {
           this.raceState = 'WRECKED';
           this.hud.setState('WRECKED');

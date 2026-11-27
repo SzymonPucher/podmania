@@ -60,6 +60,7 @@ export class PodPhysics {
       lastLandingEvent: 'none',
       lastLandingDamage: 0,
       lastLandingBoostKmh: 0,
+      lastOverheatDamage: 0,
     };
   }
 
@@ -95,6 +96,7 @@ export class PodPhysics {
     s.lastLandingEvent = 'none';
     s.lastLandingDamage = 0;
     s.lastLandingBoostKmh = 0;
+    s.lastOverheatDamage = 0;
 
     this.rollVel = 0;
     this.cockpitYawVel = 0;
@@ -118,6 +120,8 @@ export class PodPhysics {
     s.lastLandingEvent = 'none';
     s.lastLandingDamage = 0;
     s.lastLandingBoostKmh = 0;
+    s.lastOverheatDamage = 0;
+    s.lastOverheatDamage = 0;
     s.airborneOverload = false;
 
     const isWrecked = s.hullIntegrity <= 0;
@@ -131,6 +135,7 @@ export class PodPhysics {
       driveEnabled ? input.targetLeft : 0,
       dt
     );
+    const leftJustOverheated = !s.overheatedLeft && leftHeatState.overheated;
     s.heatLeft = leftHeatState.heat;
     s.overheatedLeft = leftHeatState.overheated;
 
@@ -140,8 +145,16 @@ export class PodPhysics {
       driveEnabled ? input.targetRight : 0,
       dt
     );
+    const rightJustOverheated = !s.overheatedRight && rightHeatState.overheated;
     s.heatRight = rightHeatState.heat;
     s.overheatedRight = rightHeatState.overheated;
+
+    if (leftJustOverheated || rightJustOverheated) {
+      const overheatCount = (leftJustOverheated ? 1 : 0) + (rightJustOverheated ? 1 : 0);
+      const dmg = overheatCount * POD_CONFIG.overheatHullDamage;
+      s.hullIntegrity = Math.max(0, s.hullIntegrity - dmg);
+      s.lastOverheatDamage = dmg;
+    }
 
     const effectiveTargetLeft = s.overheatedLeft ? 0 : input.targetLeft;
     const effectiveTargetRight = s.overheatedRight ? 0 : input.targetRight;

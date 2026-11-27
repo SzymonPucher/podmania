@@ -123,6 +123,7 @@ export interface PodTelemetry {
   lastLandingEvent: LandingEventKind;
   lastLandingDamage: number;
   lastLandingBoostKmh: number;
+  lastOverheatDamage: number;
 }
 
 export interface GroundSample {
