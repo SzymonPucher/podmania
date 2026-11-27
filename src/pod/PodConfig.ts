@@ -37,7 +37,7 @@ export const POD_CONFIG = {
   damperDrainRate: 0.9,
   damperRechargeRate: 0.52,
   damperOverheatCooldown: 0.55,
-  damperUpwardAccel: 68.0,
+  damperUpwardAccel: 55.0,
   damperFlatGroundDrag: 0.35,
   minAirTimeForLandingCheck: 0.32,
   safeImpactSpeed: 10.5,

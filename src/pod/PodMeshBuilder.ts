@@ -62,6 +62,7 @@ export class PodMeshBuilder {
 
   private flapFlareLeft = 0;
   private flapFlareRight = 0;
+  private engineDamperLift = 0;
 
   constructor() {
     this.podRoot.rotation.order = 'YXZ';
@@ -117,11 +118,18 @@ export class PodMeshBuilder {
     this.podRoot.position.copy(t.pos);
     this.podRoot.rotation.set(t.pitch, t.yaw, t.roll, 'YXZ');
 
-    // Subtle engine vibration & articulated cockpit lag
+    // Subtle engine vibration, damper upward lift & articulated cockpit lag
+    const liftTarget = t.damperFiring ? 0.42 : 0;
+    const liftRate = t.damperFiring ? 16 : 10;
+    this.engineDamperLift = THREE.MathUtils.lerp(
+      this.engineDamperLift,
+      liftTarget,
+      1 - Math.exp(-liftRate * dt)
+    );
     const vib = (Math.abs(t.pLeft) + Math.abs(t.pRight)) * 0.008;
     this.enginesGroup.position.set(
       (Math.random() - 0.5) * vib,
-      (Math.random() - 0.5) * vib,
+      this.engineDamperLift + (Math.random() - 0.5) * vib,
       0
     );
 
