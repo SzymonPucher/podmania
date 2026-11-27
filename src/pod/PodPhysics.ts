@@ -364,11 +364,22 @@ export class PodPhysics {
     const wasGrounded = s.isGrounded;
     s.isGrounded = withinRepulsor && !stillPlungingFromJump;
 
-    // Estimate Time-To-Impact (seconds until reaching touchdown height)
+    // Estimate Time-To-Impact (with 0.18s forward deck lookahead across void gaps)
     const closingSpeed = Math.max(-s.vel.y, -hDot);
+    let hForFlare = h;
+    if (!s.isGrounded && closingSpeed > 1.0) {
+      const lookGround = track.sampleGround(
+        s.pos.x + s.vel.x * 0.18,
+        s.pos.y,
+        s.pos.z + s.vel.z * 0.18
+      );
+      if (lookGround.found && lookGround.groundY <= s.pos.y + 1.0 && lookGround.groundY > avgGroundY) {
+        hForFlare = Math.max(0, s.pos.y - lookGround.groundY);
+      }
+    }
     const tti =
       !s.isGrounded && closingSpeed > 1.0
-        ? Math.max(0, (h - touchdownHeight) / closingSpeed)
+        ? Math.max(0, (hForFlare - touchdownHeight) / closingSpeed)
         : Infinity;
     s.timeToImpact = tti;
 
@@ -389,9 +400,11 @@ export class PodPhysics {
     // Abyss fall check on true void gaps and crumbling bridges
     if (
       (currentFeature === 'void_gap' || currentFeature === 'crumbling_bridge') &&
-      s.pos.y < nearestSlice.center.y - 26.0
+      s.pos.y < nearestSlice.center.y - 20.0
     ) {
       s.hullIntegrity = 0;
+      s.lastLandingEvent = 'hard_impact';
+      s.lastLandingDamage = 100;
     }
 
     // Lateral crosswind gusts
@@ -545,7 +558,7 @@ export class PodPhysics {
       if (
         (isFlyingMod || s.coastReady) &&
         (this.ignitionStartedInFlareWindow || tti <= POD_CONFIG.thrustFlareWindowSec) &&
-        h < 16.0 &&
+        hForFlare < 16.0 &&
         s.vel.y < -1.0 &&
         bothEnginesActiveForward
       ) {
@@ -681,9 +694,21 @@ export class PodPhysics {
     // Integrate position
     s.pos.addScaledVector(s.vel, dt);
 
-    // Prevent ground clipping on extreme drops
+    // Prevent ground clipping on normal drops, or destroy pod if slamming into a sheer cliff face
     const postGround = track.sampleGround(s.pos.x, s.pos.y, s.pos.z);
-    if (s.pos.y < postGround.groundY + 0.45) {
+    const slammedIntoCliffWall =
+      driveEnabled &&
+      (!wasGrounded ||
+        currentFeature === 'void_gap' ||
+        currentFeature === 'crumbling_bridge') &&
+      postGround.groundY - s.pos.y > 2.2;
+
+    if (slammedIntoCliffWall) {
+      s.hullIntegrity = 0;
+      s.vel.set(0, 0, 0);
+      s.lastLandingEvent = 'hard_impact';
+      s.lastLandingDamage = 100;
+    } else if (s.pos.y < postGround.groundY + 0.45) {
       s.pos.y = postGround.groundY + 0.45;
       if (s.vel.y < 0) s.vel.y = 0;
     }
