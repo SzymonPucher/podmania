@@ -119,7 +119,7 @@ export class PodMeshBuilder {
     this.podRoot.rotation.set(t.pitch, t.yaw, t.roll, 'YXZ');
 
     // Subtle engine vibration, damper upward lift & articulated cockpit lag
-    const liftTarget = t.damperFiring ? 0.42 : 0;
+    const liftTarget = t.damperFiring ? 1.15 : 0;
     const liftRate = t.damperFiring ? 16 : 10;
     this.engineDamperLift = THREE.MathUtils.lerp(
       this.engineDamperLift,
