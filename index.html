@@ -1276,7 +1276,74 @@
           width: 104px;
         }
       }
-    </style>
+
+      /* ===== Minimal corner HUD ===== */
+      #hud .hud-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+      }
+      #hud .hud-corner-left {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 6px;
+      }
+      #hud .speed-damper-center {
+        width: 120px;
+        text-align: left;
+        gap: 4px;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+      }
+      #hud .speed-value { font-size: 34px; }
+      #hud .speed-unit { margin-top: -2px; }
+      #hud .hull-section .bar-header,
+      #hud .mod-tank-section .bar-header { font-size: 9px; margin-bottom: 2px; }
+      #hud .bar-track { height: 5px; }
+      #hud .panel {
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        backdrop-filter: none;
+        padding: 0;
+      }
+      #hud .hud-left-info { display: flex; flex-direction: column; gap: 3px; opacity: 0.75; }
+      #hud .hud-timer-box {
+        min-width: 0;
+        padding: 0;
+        text-align: right;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.7);
+      }
+      #hud .timer-value { font-size: 28px; }
+      #hud .cp-row { justify-content: flex-end; font-size: 11px; gap: 8px; }
+      #hud .hud-bottom { justify-content: space-between; align-items: flex-end; }
+      #hud .telemetry-cluster { display: contents; }
+      #hud .engine-widget {
+        width: 150px;
+        gap: 4px;
+        padding: 6px 8px;
+        background: rgba(10, 15, 24, 0.45);
+        opacity: 0.85;
+      }
+      #hud .engine-header { font-size: 10px; }
+      #hud .keycap { padding: 3px 2px; font-size: 11px; }
+      #hud .keycap span { font-size: 8px; }
+      #hud .heat-row { font-size: 9px; }
+      #hud .hud-toggle-btn { display: inline-block; }
+
+      /* Speed + time only */
+      #hud.hud-minimal .hud-bottom,
+      #hud.hud-minimal .hud-left-info .map-title-tag,
+      #hud.hud-minimal .hud-left-info .mod-badge-tag,
+      #hud.hud-minimal .hud-left-info .controls-mini,
+      #hud.hud-minimal .hull-section,
+      #hud.hud-minimal .mod-tank-section,
+      #hud.hud-minimal .cp-row,
+      #hud.hud-minimal .hud-right-box {
+        display: none !important;
+      }
+      #hud.hud-minimal .hud-left-info { display: none !important; }
+      #hud.hud-minimal .hud-corner-left .mobile-actions { display: none; }    </style>
   </head>
   <body>
     <div id="app">
@@ -1303,6 +1370,29 @@
 
       <div id="hud" class="hidden">
         <div class="hud-top">
+          <div class="hud-corner-left">
+              <div class="speed-damper-center">
+                <div class="speed-value" id="hud-speed">0</div>
+                <div class="speed-unit">KM/H</div>
+                <div class="hull-section">
+                  <div class="bar-header">
+                    <span>Hull Integrity</span>
+                    <span id="hud-hull-pct">100%</span>
+                  </div>
+                  <div class="bar-track">
+                    <div class="bar-fill" id="hud-hull-bar" style="width: 100%; background: #38bdf8;"></div>
+                  </div>
+                </div>
+                <div class="mod-tank-section hidden" id="hud-mod-tank-section">
+                  <div class="bar-header" style="margin-top: 4px;">
+                    <span id="hud-mod-tank-label">Nitro [Space]</span>
+                    <span id="hud-mod-tank-val">5.0s</span>
+                  </div>
+                  <div class="bar-track">
+                    <div class="bar-fill" id="hud-mod-tank-bar" style="width: 100%; background: #f97316;"></div>
+                  </div>
+                </div>
+              </div>
           <div class="panel hud-left-info">
             <div class="map-title-tag" id="hud-map-name">Dustveil Gorge</div>
             <div class="mod-badge-tag" id="hud-mod-name">Stock Pod</div>
@@ -1315,7 +1405,9 @@
               <button type="button" class="mobile-action-btn" id="btn-hud-respawn" title="Last Checkpoint">CP</button>
               <button type="button" class="mobile-action-btn" id="btn-hud-restart" title="Restart">↻</button>
               <button type="button" class="mobile-action-btn" id="btn-hud-pause" title="Pause">⏸</button>
+              <button type="button" class="mobile-action-btn" id="btn-hud-toggle" title="Toggle minimal HUD">HUD</button>
             </div>
+          </div>
           </div>
 
           <div class="panel hud-timer-box">
@@ -1378,29 +1470,6 @@
               </div>
             </div>
 
-            <div class="speed-damper-center">
-              <div class="speed-value" id="hud-speed">0</div>
-              <div class="speed-unit">KM/H</div>
-              <div class="hull-section">
-                <div class="bar-header">
-                  <span>Hull Integrity</span>
-                  <span id="hud-hull-pct">100%</span>
-                </div>
-                <div class="bar-track">
-                  <div class="bar-fill" id="hud-hull-bar" style="width: 100%; background: #38bdf8;"></div>
-                </div>
-              </div>
-              <div class="mod-tank-section hidden" id="hud-mod-tank-section">
-                <div class="bar-header" style="margin-top: 4px;">
-                  <span id="hud-mod-tank-label">Nitro [Space]</span>
-                  <span id="hud-mod-tank-val">5.0s</span>
-                </div>
-                <div class="bar-track">
-                  <div class="bar-fill" id="hud-mod-tank-bar" style="width: 100%; background: #f97316;"></div>
-                </div>
-              </div>
-            </div>
-
             <div class="engine-widget" id="hud-right-widget">
               <div class="engine-header">
                 <span id="hud-right-pct">0%</span>
@@ -1456,6 +1525,7 @@
           <h2 style="margin-top: 0;">Run Paused</h2>
           <div class="modal-actions" style="justify-content: center;">
             <button class="btn btn-primary" id="btn-resume">Resume</button>
+            <button class="btn btn-secondary" id="btn-pause-hud">HUD: Full (H)</button>
             <button class="btn btn-secondary" id="btn-pause-restart">Restart (R)</button>
             <button class="btn btn-secondary" id="btn-pause-menu">Map Select</button>
           </div>

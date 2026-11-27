@@ -114,6 +114,7 @@ export class HudController {
   private splitHideTimeout: number | null = null;
   private badgeHideTimeout: number | null = null;
   private activeDifficultyFilter: MapDifficulty | 'all' = 'all';
+  private minimalHud = localStorage.getItem('podmania.hudMinimal') === '1';
 
   constructor(private readonly actions: HudActions) {
     document.getElementById('btn-resume')?.addEventListener('click', () => this.actions.onResume());
@@ -126,7 +127,30 @@ export class HudController {
     document.getElementById('btn-hud-respawn')?.addEventListener('click', () => this.actions.onRespawn());
     document.getElementById('btn-hud-restart')?.addEventListener('click', () => this.actions.onRestart());
     document.getElementById('btn-hud-pause')?.addEventListener('click', () => this.actions.onPause());
+    document.getElementById('btn-hud-toggle')?.addEventListener('click', () => this.toggleMinimalHud());
+    document.getElementById('btn-pause-hud')?.addEventListener('click', () => this.toggleMinimalHud());
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'KeyH' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        this.toggleMinimalHud();
+      }
+    });
+    this.applyMinimalHud();
   }
+
+  public toggleMinimalHud(): void {
+    this.minimalHud = !this.minimalHud;
+    try {
+      localStorage.setItem('podmania.hudMinimal', this.minimalHud ? '1' : '0');
+    } catch {
+      /* ignore storage errors */
+    }
+    this.applyMinimalHud();
+  }
+
+  private applyMinimalHud(): void {
+    this.hudEl.classList.toggle('hud-minimal', this.minimalHud);
+    const pauseBtn = document.getElementById('btn-pause-hud');
+    if (pauseBtn) pauseBtn.textContent = this.minimalHud ? 'HUD: Speed + Time (H)' : 'HUD: Full (H)';  }
 
   public setState(state: RaceState): void {
     const showTouch = state === 'COUNTDOWN' || state === 'RACING';
