@@ -94,7 +94,7 @@ export class EnvironmentSetup {
   private readonly skyMesh: THREE.Mesh;
   private currentBiome: MapBiome = 'desert';
   private caveBlend = 0;
-  private readonly caveFogColor = new THREE.Color(0x0b0e16);
+  private readonly caveFogColor = new THREE.Color(0x121622);
   private readonly baseFogColor = new THREE.Color(0xefd3a8);
 
   constructor(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
@@ -192,11 +192,11 @@ export class EnvironmentSetup {
     const targetBlend = inCave ? 1 : 0;
     this.caveBlend += (targetBlend - this.caveBlend) * 0.12;
     const cfg = BIOME_ATMOSPHERES[this.currentBiome] ?? BIOME_ATMOSPHERES.desert;
-    this.hemiLight.intensity = THREE.MathUtils.lerp(cfg.hemiIntensity, 0.11, this.caveBlend);
-    this.sunLight.intensity = THREE.MathUtils.lerp(cfg.sunIntensity, 0.08, this.caveBlend);
-    this.scene.environmentIntensity = THREE.MathUtils.lerp(cfg.envIntensity, 0.12, this.caveBlend);
+    this.hemiLight.intensity = THREE.MathUtils.lerp(cfg.hemiIntensity, 0.22, this.caveBlend);
+    this.sunLight.intensity = THREE.MathUtils.lerp(cfg.sunIntensity, 0.18, this.caveBlend);
+    this.scene.environmentIntensity = THREE.MathUtils.lerp(cfg.envIntensity, 0.24, this.caveBlend);
     this.fog.color.copy(this.baseFogColor).lerp(this.caveFogColor, this.caveBlend);
-    this.fog.density = THREE.MathUtils.lerp(cfg.fogDensity, 0.0024, this.caveBlend);
+    this.fog.density = THREE.MathUtils.lerp(cfg.fogDensity, 0.0014, this.caveBlend);
     // Keep sky dome centered on pod
     this.skyMesh.position.set(podPos.x, 0, podPos.z);
 
