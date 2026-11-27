@@ -116,7 +116,7 @@ export class PodMeshBuilder {
   }
 
   public update(t: PodTelemetry, dt: number, elapsedTime: number): void {
-    const glideRate = t.damperFiring ? 3 : 2;
+    const glideRate = t.damperFiring ? 3 : 4;
     this.damperGlideBlend = THREE.MathUtils.lerp(
       this.damperGlideBlend,
       t.damperFiring ? 1 : 0,

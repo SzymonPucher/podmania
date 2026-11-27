@@ -30,7 +30,7 @@ export const POD_CONFIG = {
   hoverSpringOmega: 14.0,
   hoverDampingRatio: 0.85,
   slopePitchAlignRate: 9.0,
-  airPitchNoseDropRate: 0.35,
+  airPitchNoseDropRate: 0.7,
 
   // Damping Thruster (Space) & Hull Damage
   damperMaxCharge: 1.0,
