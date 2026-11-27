@@ -14,11 +14,11 @@ export const MAP2_CRIMSON_RIFT: MapDefinition = {
     bronze: 78000,
   },
   stations: [
-    // Sector 1: Obsidian Launch (0 - 380m)
+    // Sector 1: Obsidian Launch (0 - 380m) — straight & sweeping turn with half-track rock barriers
     { pos: [0, 0, 20], canyonWidth: 28, wallHeight: 26, bankingDeg: 0, feature: 'normal' },
-    { pos: [0, 0, -65], canyonWidth: 28, wallHeight: 28, bankingDeg: 0, feature: 'normal' },
-    { pos: [-18, 2, -165], canyonWidth: 26, wallHeight: 30, bankingDeg: -8, feature: 'normal' },
-    { pos: [-68, 4, -260], canyonWidth: 26, wallHeight: 34, bankingDeg: -12, feature: 'normal' },
+    { pos: [0, 0, -65], canyonWidth: 28, wallHeight: 28, bankingDeg: 0, feature: 'half_rock_left' },
+    { pos: [-18, 2, -165], canyonWidth: 26, wallHeight: 30, bankingDeg: -8, feature: 'half_rock_right' },
+    { pos: [-68, 4, -260], canyonWidth: 26, wallHeight: 34, bankingDeg: -12, feature: 'half_rock_left' },
     { pos: [-135, 6, -345], canyonWidth: 30, wallHeight: 36, bankingDeg: -10, feature: 'normal', checkpoint: true },
 
     // Sector 2: Twin-Ledge Basalt Split (380 - 860m) — raised center spine divides left/right channels

@@ -569,6 +569,10 @@ export class TrackBuilder {
         positions[idx + 1] = wy;
         positions[idx + 2] = wz;
 
+        if (s.feature === 'cave') {
+          tmpCol.multiplyScalar(0.24);
+        }
+
         colors[idx] = tmpCol.r;
         colors[idx + 1] = tmpCol.g;
         colors[idx + 2] = tmpCol.b;
@@ -677,7 +681,7 @@ export class TrackBuilder {
         const crystalMat = new THREE.MeshStandardMaterial({
           color: crystalColor,
           emissive: crystalColor,
-          emissiveIntensity: 1.8,
+          emissiveIntensity: 0.55,
           flatShading: true,
         });
         const crystal = new THREE.Mesh(crystalGeo, crystalMat);
@@ -685,7 +689,7 @@ export class TrackBuilder {
         crystal.rotation.z = side * 0.45;
         this.group.add(crystal);
 
-        const pt = new THREE.PointLight(crystalColor, 26, 36, 1.6);
+        const pt = new THREE.PointLight(crystalColor, 3.0, 18, 1.8);
         pt.position.copy(crystalPos).add(new THREE.Vector3(-s.right.x * side * 2, 0, -s.right.z * side * 2));
         this.group.add(pt);
       }
@@ -827,18 +831,11 @@ export class TrackBuilder {
     }
 
     this.buildPillarSlalomProps();
+    this.buildHalfRockBarriers();
   }
 
-  private buildPillarSlalomProps(): void {
-    const pal = BIOME_PALETTES[this.biome];
-    const rockMat = new THREE.MeshStandardMaterial({
-      color: pal.terra,
-      flatShading: true,
-      roughness: 0.94,
-    });
-
-    // Build 3 varied jagged rock geometries for natural boulder/outcrop silhouettes
-    const rockGeos: THREE.BufferGeometry[] = [0, 1, 2].map((variant) => {
+  private createRockVariants(): THREE.BufferGeometry[] {
+    return [0, 1, 2].map((variant) => {
       const geo = new THREE.DodecahedronGeometry(1, 1);
       const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
       for (let v = 0; v < posAttr.count; v++) {
@@ -851,6 +848,62 @@ export class TrackBuilder {
       geo.computeVertexNormals();
       return geo;
     });
+  }
+
+  private buildHalfRockBarriers(): void {
+    const pal = BIOME_PALETTES[this.biome];
+    const rockMat = new THREE.MeshStandardMaterial({
+      color: pal.terra,
+      flatShading: true,
+      roughness: 0.94,
+    });
+    const rockGeos = this.createRockVariants();
+
+    let i = 0;
+    while (i < this.slices.length) {
+      const feat = this.slices[i].feature;
+      if (feat === 'half_rock_left' || feat === 'half_rock_right') {
+        const start = i;
+        while (i < this.slices.length && this.slices[i].feature === feat) i++;
+        const end = i - 1;
+        const mid = Math.floor((start + end) * 0.5);
+        const s = this.slices[mid];
+        const side = feat === 'half_rock_left' ? -1 : 1;
+        const halfW = s.canyonWidth * 0.5;
+        const radius = halfW * 0.34;
+        const height = 18;
+
+        for (const frac of [0.32, 0.72]) {
+          const d = side * halfW * frac;
+          const wx = s.center.x + s.right.x * d;
+          const wz = s.center.z + s.right.z * d;
+          const wy = this.sampleGround(wx, s.center.y, wz).groundY;
+
+          const mesh = new THREE.Mesh(rockGeos[(mid + (frac > 0.5 ? 1 : 0)) % rockGeos.length], rockMat);
+          mesh.scale.set(radius * 1.05, height * 0.65, radius * 1.05);
+          mesh.position.set(wx, wy + height * 0.36 - 0.6, wz);
+          mesh.rotation.set(0.08, hash2D(mid, frac * 10) * Math.PI * 2, -0.08 * side);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          this.group.add(mesh);
+
+          this.obstacles.push({ x: wx, y: wy, z: wz, radius, height });
+        }
+      } else {
+        i++;
+      }
+    }
+  }
+
+  private buildPillarSlalomProps(): void {
+    const pal = BIOME_PALETTES[this.biome];
+    const rockMat = new THREE.MeshStandardMaterial({
+      color: pal.terra,
+      flatShading: true,
+      roughness: 0.94,
+    });
+
+    const rockGeos = this.createRockVariants();
 
     // Find contiguous pillar_slalom spans where width is wide (>= 120m)
     let i = 0;

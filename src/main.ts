@@ -354,7 +354,8 @@ class PodManiaApp {
       this.podMesh.update(st, dt, this.elapsedTime);
       this.podVfx.update(st, dt);
       this.chaseCam.update(this.camera, st, dt);
-      this.env.update(st.pos);
+      const inCave = this.track?.findNearestSlice(st.pos.x, st.pos.z).feature === 'cave';
+      this.env.update(st.pos, inCave);
       this.audio.updateEngines(
         st.pLeft,
         st.pRight,
@@ -380,7 +381,8 @@ class PodManiaApp {
         st.pos.z + Math.cos(angle) * 11
       );
       this.camera.lookAt(st.pos.x, st.pos.y + 0.8, st.pos.z - 1.5);
-      this.env.update(st.pos);
+      const inCave = this.track?.findNearestSlice(st.pos.x, st.pos.z).feature === 'cave';
+      this.env.update(st.pos, inCave);
     }
 
     this.composer.render();

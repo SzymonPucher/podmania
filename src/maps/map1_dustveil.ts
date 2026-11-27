@@ -20,11 +20,11 @@ export const MAP1_DUSTVEIL: MapDefinition = {
     { pos: [34, 1, -260], canyonWidth: 24, wallHeight: 28, bankingDeg: 11, feature: 'normal' },
     { pos: [95, 2, -350], canyonWidth: 22, wallHeight: 30, bankingDeg: 14, feature: 'normal', checkpoint: true },
 
-    // Sector 2: Twin-Arch Serpentine (380 - 820m) — rhythm S-bends with natural dirt berms
-    { pos: [175, 4, -420], canyonWidth: 21, wallHeight: 34, bankingDeg: 16, feature: 'normal' },
-    { pos: [255, 6, -495], canyonWidth: 20, wallHeight: 36, bankingDeg: -15, feature: 'normal' },
-    { pos: [310, 7, -595], canyonWidth: 20, wallHeight: 36, bankingDeg: -16, feature: 'normal' },
-    { pos: [330, 8, -700], canyonWidth: 20, wallHeight: 38, bankingDeg: 14, feature: 'normal' },
+    // Sector 2: Twin-Arch Serpentine (380 - 820m) — rhythm S-bends with alternating half-track rock barriers (inside & outside turns)
+    { pos: [175, 4, -420], canyonWidth: 24, wallHeight: 34, bankingDeg: 16, feature: 'half_rock_right' },
+    { pos: [255, 6, -495], canyonWidth: 24, wallHeight: 36, bankingDeg: -15, feature: 'half_rock_left' },
+    { pos: [310, 7, -595], canyonWidth: 24, wallHeight: 36, bankingDeg: -16, feature: 'half_rock_right' },
+    { pos: [330, 8, -700], canyonWidth: 24, wallHeight: 38, bankingDeg: 14, feature: 'half_rock_left' },
     { pos: [380, 6, -800], canyonWidth: 21, wallHeight: 40, bankingDeg: 10, feature: 'normal', checkpoint: true },
 
     // Sector 3: Echoing Cavern (820 - 1260m) — 440m enclosed cave ending in a tight left hairpin

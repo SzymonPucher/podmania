@@ -92,6 +92,10 @@ export class EnvironmentSetup {
   private readonly skyMat: THREE.ShaderMaterial;
   private readonly pmremTarget: THREE.WebGLRenderTarget;
   private readonly skyMesh: THREE.Mesh;
+  private currentBiome: MapBiome = 'desert';
+  private caveBlend = 0;
+  private readonly caveFogColor = new THREE.Color(0x050609);
+  private readonly baseFogColor = new THREE.Color(0xefd3a8);
 
   constructor(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
     this.scene = scene;
@@ -166,11 +170,14 @@ export class EnvironmentSetup {
   }
 
   public setBiome(biome: MapBiome = 'desert'): void {
+    this.currentBiome = biome;
+    this.caveBlend = 0;
     const cfg = BIOME_ATMOSPHERES[biome] ?? BIOME_ATMOSPHERES.desert;
     this.skyMat.uniforms.topColor.value.setHex(cfg.topColor);
     this.skyMat.uniforms.horizonColor.value.setHex(cfg.horizonColor);
     this.skyMat.uniforms.bottomColor.value.setHex(cfg.bottomColor);
-    this.fog.color.setHex(cfg.fogColor);
+    this.baseFogColor.setHex(cfg.fogColor);
+    this.fog.color.copy(this.baseFogColor);
     this.fog.density = cfg.fogDensity;
     this.hemiLight.color.setHex(cfg.hemiSky);
     this.hemiLight.groundColor.setHex(cfg.hemiGround);
@@ -180,7 +187,16 @@ export class EnvironmentSetup {
     this.scene.environmentIntensity = cfg.envIntensity;
   }
 
-  public update(podPos: THREE.Vector3): void {
+  public update(podPos: THREE.Vector3, inCave = false): void {
+    // Smoothly darken ambient, sun, environment, and fog inside caves so engines stand out
+    const targetBlend = inCave ? 1 : 0;
+    this.caveBlend += (targetBlend - this.caveBlend) * 0.12;
+    const cfg = BIOME_ATMOSPHERES[this.currentBiome] ?? BIOME_ATMOSPHERES.desert;
+    this.hemiLight.intensity = THREE.MathUtils.lerp(cfg.hemiIntensity, 0.035, this.caveBlend);
+    this.sunLight.intensity = THREE.MathUtils.lerp(cfg.sunIntensity, 0.025, this.caveBlend);
+    this.scene.environmentIntensity = THREE.MathUtils.lerp(cfg.envIntensity, 0.035, this.caveBlend);
+    this.fog.color.copy(this.baseFogColor).lerp(this.caveFogColor, this.caveBlend);
+    this.fog.density = THREE.MathUtils.lerp(cfg.fogDensity, 0.0042, this.caveBlend);
     // Keep sky dome centered on pod
     this.skyMesh.position.set(podPos.x, 0, podPos.z);
 
