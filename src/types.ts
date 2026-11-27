@@ -97,6 +97,28 @@ export interface InputSnapshot {
   spaceHeld: boolean;
 }
 
+export interface TouchFingerState {
+  active: boolean;
+  /** Normalized horizontal screen coordinate [0..1] */
+  xNorm: number;
+  /** Normalized vertical screen coordinate [0..1] */
+  yNorm: number;
+  /** Viewport X in CSS pixels */
+  clientX: number;
+  /** Viewport Y in CSS pixels */
+  clientY: number;
+  /** Computed throttle [-0.3..1.0] */
+  throttle: number;
+  /** True when finger has slid into the middle activation zone for nitro/coolant */
+  inMiddleZone: boolean;
+}
+
+export interface TouchControlsState {
+  hasUsedTouch: boolean;
+  left: TouchFingerState;
+  right: TouchFingerState;
+}
+
 export type LandingEventKind =
   | 'none'
   | 'vector_boost'

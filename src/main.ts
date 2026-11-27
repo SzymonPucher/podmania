@@ -103,10 +103,15 @@ class PodManiaApp {
       onEscape: () => this.handleEscape(),
       onToggleMute: () => this.audio.toggleMute(),
     });
+    const touchEl = document.getElementById('touch-controls');
+    if (touchEl) {
+      this.input.attachTouchElement(touchEl);
+    }
 
     this.hud = new HudController({
       onSelectMap: (mapId) => this.loadAndStartMap(mapId),
       onSelectModification: (modId) => this.selectModification(modId),
+      onPause: () => this.handleEscape(),
       onResume: () => {
         if (this.raceState === 'PAUSED') {
           this.raceState = 'RACING';
@@ -217,6 +222,7 @@ class PodManiaApp {
   }
 
   private showMenu(): void {
+    this.input.clearTouch();
     this.raceState = 'MENU';
     this.hud.renderMapMenu(this.storage, this.selectedMod);
     this.hud.setState('MENU');
@@ -225,6 +231,7 @@ class PodManiaApp {
 
   private handleEscape(): void {
     if (this.raceState === 'RACING') {
+      this.input.clearTouch();
       this.raceState = 'PAUSED';
       this.hud.setState('PAUSED');
       this.audio.updateEngines(0, 0, 0, 0, false, false);
@@ -260,6 +267,7 @@ class PodManiaApp {
 
   private onRaceFinished(): void {
     if (!this.checkpoints) return;
+    this.input.clearTouch();
     this.raceState = 'FINISHED';
     const { medal, score } = this.computeMedalAndScore(this.raceTimeMs);
     const { isNewPB, prevBestMedal } = this.storage.recordRun(
@@ -384,6 +392,7 @@ class PodManiaApp {
         }
 
         if (allowDrive && st.hullIntegrity <= 0) {
+          this.input.clearTouch();
           this.raceState = 'WRECKED';
           this.hud.setState('WRECKED');
           break;
@@ -439,6 +448,7 @@ class PodManiaApp {
         this.checkpoints.getCurrentCpNumber(),
         this.checkpoints.totalCheckpoints
       );
+      this.hud.updateTouchControls(this.input.getTouchState(), st);
     } else if (this.raceState === 'MENU') {
       // Gentle scenic idle orbit around the podracer at Start
       const st = this.physics.state;

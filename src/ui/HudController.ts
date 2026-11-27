@@ -1,4 +1,9 @@
 import type { StorageManager } from '../core/StorageManager';
+import {
+  TOUCH_SLIDER_REV_FRAC,
+  TOUCH_SLIDER_TOP_FRAC,
+  TOUCH_SLIDER_ZERO_FRAC,
+} from '../core/InputManager';
 import { MAP_REGISTRY } from '../maps/mapRegistry';
 import { getModificationById, POD_CONFIG, POD_MODIFICATIONS } from '../pod/PodConfig';
 import type {
@@ -8,7 +13,14 @@ import type {
   PodModificationId,
   PodTelemetry,
   RaceState,
+  TouchControlsState,
+  TouchFingerState,
 } from '../types';
+
+const RAIL_ZERO_PCT =
+  ((TOUCH_SLIDER_ZERO_FRAC - TOUCH_SLIDER_TOP_FRAC) /
+    (TOUCH_SLIDER_REV_FRAC - TOUCH_SLIDER_TOP_FRAC)) *
+  100;
 
 export function formatTimeMs(ms: number): string {
   const totalMs = Math.max(0, Math.round(ms));
@@ -21,6 +33,7 @@ export function formatTimeMs(ms: number): string {
 export interface HudActions {
   onSelectMap: (mapId: string) => void;
   onSelectModification: (modId: PodModificationId) => void;
+  onPause: () => void;
   onResume: () => void;
   onRestart: () => void;
   onRespawn: () => void;
@@ -29,6 +42,13 @@ export interface HudActions {
 
 export class HudController {
   private readonly hudEl = document.getElementById('hud')!;
+  private readonly touchControlsEl = document.getElementById('touch-controls')!;
+  private readonly touchRailLeftEl = document.getElementById('touch-rail-fill-left')!;
+  private readonly touchRailRightEl = document.getElementById('touch-rail-fill-right')!;
+  private readonly touchMidCueEl = document.getElementById('touch-mid-cue')!;
+  private readonly touchMidLabelEl = document.getElementById('touch-mid-label')!;
+  private readonly touchFingerLeftEl = document.getElementById('touch-finger-left')!;
+  private readonly touchFingerRightEl = document.getElementById('touch-finger-right')!;
   private readonly menuEl = document.getElementById('menu-overlay')!;
   private readonly pauseEl = document.getElementById('pause-overlay')!;
   private readonly wreckedEl = document.getElementById('wrecked-overlay')!;
@@ -100,9 +120,14 @@ export class HudController {
     document.getElementById('btn-wreck-restart')?.addEventListener('click', () => this.actions.onRestart());
     document.getElementById('btn-finish-menu')?.addEventListener('click', () => this.actions.onBackToMenu());
     document.getElementById('btn-finish-retry')?.addEventListener('click', () => this.actions.onRestart());
+    document.getElementById('btn-hud-respawn')?.addEventListener('click', () => this.actions.onRespawn());
+    document.getElementById('btn-hud-restart')?.addEventListener('click', () => this.actions.onRestart());
+    document.getElementById('btn-hud-pause')?.addEventListener('click', () => this.actions.onPause());
   }
 
   public setState(state: RaceState): void {
+    const showTouch = state === 'COUNTDOWN' || state === 'RACING';
+    this.touchControlsEl.classList.toggle('hidden', !showTouch);
     this.hudEl.classList.toggle('hidden', state === 'MENU');
     this.menuEl.classList.toggle('hidden', state !== 'MENU');
     this.pauseEl.classList.toggle('hidden', state !== 'PAUSED');
@@ -224,15 +249,22 @@ export class HudController {
       this.modTankSectionEl.classList.remove('hidden');
       this.modTankLabelEl.textContent = 'Nitro [Space]';
       this.modTankBarEl.style.background = '#f97316';
+      this.touchMidCueEl.classList.remove('hidden');
+      this.touchMidCueEl.style.color = '#f97316';
+      this.touchMidLabelEl.textContent = 'NITRO';
     } else if (selectedMod === 'cooled') {
       this.hudSpaceHintEl.classList.remove('hidden');
       this.hudSpaceActionEl.textContent = 'Engine Coolant';
       this.modTankSectionEl.classList.remove('hidden');
       this.modTankLabelEl.textContent = 'Coolant [Space]';
       this.modTankBarEl.style.background = '#38bdf8';
+      this.touchMidCueEl.classList.remove('hidden');
+      this.touchMidCueEl.style.color = '#38bdf8';
+      this.touchMidLabelEl.textContent = 'COOL';
     } else {
       this.hudSpaceHintEl.classList.add('hidden');
       this.modTankSectionEl.classList.add('hidden');
+      this.touchMidCueEl.classList.add('hidden');
     }
 
     this.damperLabelEl.textContent =
@@ -523,6 +555,93 @@ export class HudController {
       barEl.style.background = '#f97316';
     } else {
       barEl.style.background = '#f59e0b';
+    }
+  }
+
+  public updateTouchControls(touch: TouchControlsState, t: PodTelemetry): void {
+    if (touch.hasUsedTouch) {
+      this.touchControlsEl.classList.add('touch-visible');
+      document.body.classList.add('touch-mode');
+    }
+
+    const hasModTank = t.modification === 'nitro' || t.modification === 'cooled';
+    const modTriggered =
+      hasModTank &&
+      ((touch.left.active && touch.left.inMiddleZone) ||
+        (touch.right.active && touch.right.inMiddleZone));
+    this.touchMidCueEl.classList.toggle('active', modTriggered && t.modTankSec > 0);
+
+    this.updateFingerVisual(
+      this.touchFingerLeftEl,
+      this.touchRailLeftEl,
+      touch.left,
+      t.overheatedLeft,
+      t.modification,
+      t.modTankSec > 0
+    );
+    this.updateFingerVisual(
+      this.touchFingerRightEl,
+      this.touchRailRightEl,
+      touch.right,
+      t.overheatedRight,
+      t.modification,
+      t.modTankSec > 0
+    );
+  }
+
+  private updateFingerVisual(
+    fingerEl: HTMLElement,
+    railFillEl: HTMLElement,
+    finger: TouchFingerState,
+    overheated: boolean,
+    mod: PodModificationId,
+    hasTankLeft: boolean
+  ): void {
+    const isNitroZone = finger.active && finger.inMiddleZone && mod === 'nitro' && hasTankLeft;
+    const isCooledZone = finger.active && finger.inMiddleZone && mod === 'cooled' && hasTankLeft;
+
+    fingerEl.classList.toggle('active', finger.active);
+    fingerEl.classList.toggle(
+      'full-throttle',
+      finger.active && finger.throttle >= 0.99 && !overheated && !isNitroZone && !isCooledZone
+    );
+    fingerEl.classList.toggle(
+      'reverse',
+      finger.active && finger.throttle < 0 && !overheated && !isNitroZone && !isCooledZone
+    );
+    fingerEl.classList.toggle('overheated', finger.active && overheated);
+    fingerEl.classList.toggle('mod-nitro', isNitroZone);
+    fingerEl.classList.toggle('mod-cooled', isCooledZone);
+
+    if (finger.active) {
+      fingerEl.style.transform = `translate3d(${finger.clientX}px, ${finger.clientY}px, 0) translate(-50%, -50%)`;
+    }
+
+    if (!finger.active || Math.abs(finger.throttle) < 0.005) {
+      railFillEl.classList.remove('active');
+      return;
+    }
+
+    railFillEl.classList.add('active');
+    if (finger.throttle > 0) {
+      const hPct = finger.throttle * RAIL_ZERO_PCT;
+      railFillEl.style.top = `${RAIL_ZERO_PCT - hPct}%`;
+      railFillEl.style.height = `${hPct}%`;
+      railFillEl.style.background = overheated
+        ? 'rgba(239, 68, 68, 0.85)'
+        : isNitroZone
+          ? '#f97316'
+          : isCooledZone
+            ? '#38bdf8'
+            : finger.throttle >= 0.99
+              ? 'rgba(245, 158, 11, 0.85)'
+              : 'rgba(255, 255, 255, 0.65)';
+    } else {
+      const revFrac = Math.min(1, Math.abs(finger.throttle) / 0.3);
+      const hPct = revFrac * (100 - RAIL_ZERO_PCT);
+      railFillEl.style.top = `${RAIL_ZERO_PCT}%`;
+      railFillEl.style.height = `${hPct}%`;
+      railFillEl.style.background = 'rgba(248, 113, 113, 0.8)';
     }
   }
 

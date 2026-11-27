@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>PodMania — Twin-Engine Podracer Time Trial</title>
     <style>
       :root {
@@ -41,12 +44,14 @@
         position: relative;
         width: 100%;
         height: 100%;
+        touch-action: none;
       }
 
       canvas {
         display: block;
         width: 100%;
         height: 100%;
+        touch-action: none;
       }
 
       .hidden {
@@ -62,6 +67,7 @@
         flex-direction: column;
         justify-content: space-between;
         padding: 18px 22px;
+        z-index: 10;
       }
 
       .hud-top {
@@ -769,10 +775,341 @@
         gap: 10px;
         margin-top: 18px;
       }
+
+      /* Minimalistic Mobile Touch Controls */
+      #touch-controls {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        touch-action: none;
+        pointer-events: auto;
+        overflow: hidden;
+      }
+
+      .touch-visuals {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+      }
+
+      #touch-controls.touch-visible .touch-visuals {
+        opacity: 1;
+      }
+
+      @media (hover: none) and (pointer: coarse) {
+        .touch-visuals {
+          opacity: 1;
+        }
+      }
+
+      .touch-rail {
+        position: absolute;
+        top: 18%;
+        bottom: 8%;
+        width: 2px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      .touch-rail.left {
+        left: calc(16px + env(safe-area-inset-left, 0px));
+      }
+
+      .touch-rail.right {
+        right: calc(16px + env(safe-area-inset-right, 0px));
+      }
+
+      .touch-rail-zero {
+        position: absolute;
+        top: 83.78%;
+        left: -3px;
+        width: 8px;
+        height: 1px;
+        background: rgba(255, 255, 255, 0.28);
+      }
+
+      .touch-rail-fill {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.65);
+        opacity: 0;
+        transition: opacity 0.08s ease;
+      }
+
+      .touch-rail-fill.active {
+        opacity: 1;
+      }
+
+      .touch-mid-cue {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        color: #f97316;
+      }
+
+      .touch-mid-line {
+        position: absolute;
+        top: 22%;
+        bottom: 18%;
+        width: 1px;
+        background: linear-gradient(
+          to bottom,
+          transparent 0%,
+          currentColor 20%,
+          currentColor 80%,
+          transparent 100%
+        );
+        opacity: 0.14;
+        transition: opacity 0.12s ease;
+      }
+
+      .touch-mid-line.left {
+        left: 28%;
+      }
+
+      .touch-mid-line.right {
+        left: 72%;
+      }
+
+      .touch-mid-cue.active .touch-mid-line {
+        opacity: 0.5;
+      }
+
+      .touch-mid-label {
+        position: absolute;
+        top: 20%;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 9px;
+        font-weight: 700;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: currentColor;
+        opacity: 0.28;
+        transition: opacity 0.12s ease;
+      }
+
+      .touch-mid-cue.active .touch-mid-label {
+        opacity: 0.85;
+      }
+
+      .touch-finger {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        border: 1.5px solid rgba(255, 255, 255, 0.65);
+        background: rgba(255, 255, 255, 0.04);
+        opacity: 0;
+        will-change: transform, opacity;
+        transition: opacity 0.08s ease, border-color 0.08s ease, box-shadow 0.08s ease;
+      }
+
+      .touch-finger::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 4px;
+        height: 4px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.8);
+        transform: translate(-50%, -50%);
+      }
+
+      .touch-finger.active {
+        opacity: 1;
+      }
+
+      .touch-finger.full-throttle {
+        border-color: rgba(245, 158, 11, 0.9);
+      }
+
+      .touch-finger.reverse {
+        border-color: rgba(248, 113, 113, 0.85);
+      }
+
+      .touch-finger.overheated {
+        border-color: rgba(239, 68, 68, 0.95);
+        box-shadow: 0 0 10px rgba(239, 68, 68, 0.35);
+      }
+
+      .touch-finger.mod-nitro {
+        border-color: #f97316;
+        box-shadow: 0 0 14px rgba(249, 115, 22, 0.45);
+      }
+
+      .touch-finger.mod-cooled {
+        border-color: #38bdf8;
+        box-shadow: 0 0 14px rgba(56, 189, 248, 0.45);
+      }
+
+      .mobile-actions {
+        display: none;
+        gap: 6px;
+        margin-top: 6px;
+        pointer-events: auto;
+      }
+
+      .mobile-action-btn {
+        appearance: none;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--text-main);
+        border-radius: 6px;
+        padding: 4px 8px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        touch-action: manipulation;
+      }
+
+      .mobile-action-btn:active {
+        background: rgba(255, 255, 255, 0.22);
+      }
+
+      body.touch-mode .mobile-actions {
+        display: flex;
+      }
+
+      body.touch-mode .controls-mini,
+      body.touch-mode .key-row {
+        display: none;
+      }
+
+      @media (hover: none) and (pointer: coarse) {
+        .mobile-actions {
+          display: flex;
+        }
+        .controls-mini,
+        .key-row {
+          display: none;
+        }
+      }
+
+      @media (max-width: 900px), (max-height: 520px) {
+        #hud {
+          padding: 10px calc(26px + env(safe-area-inset-right, 0px)) 10px
+            calc(26px + env(safe-area-inset-left, 0px));
+        }
+
+        .panel {
+          padding: 7px 10px;
+          border-radius: 8px;
+        }
+
+        .hud-left-info {
+          min-width: 0;
+        }
+
+        .hud-timer-box {
+          min-width: 150px;
+          padding: 7px 12px;
+        }
+
+        .timer-value {
+          font-size: 24px;
+        }
+
+        .cp-row {
+          font-size: 11px;
+          gap: 6px;
+        }
+
+        .hud-right-box {
+          min-width: 140px;
+          gap: 5px;
+        }
+
+        .medal-targets {
+          font-size: 10px;
+          gap: 2px 8px;
+        }
+
+        .telemetry-cluster {
+          gap: 8px;
+          padding: 7px 10px;
+        }
+
+        .engine-widget {
+          width: 120px;
+          gap: 4px;
+          padding: 2px 4px;
+        }
+
+        .speed-damper-center {
+          width: 120px;
+          gap: 4px;
+        }
+
+        .speed-value {
+          font-size: 26px;
+        }
+
+        .countdown-text {
+          font-size: 62px;
+        }
+
+        .event-badge {
+          font-size: 12px;
+          padding: 5px 12px;
+        }
+      }
+
+      @media (max-width: 560px) {
+        .medal-targets {
+          display: none;
+        }
+
+        .hull-section {
+          border-top: none;
+          padding-top: 0;
+        }
+
+        .hud-right-box {
+          min-width: 110px;
+        }
+
+        .engine-widget {
+          width: 96px;
+        }
+
+        .speed-damper-center {
+          width: 104px;
+        }
+      }
     </style>
   </head>
   <body>
     <div id="app">
+      <!-- Minimalistic Mobile Touch Controls -->
+      <div id="touch-controls" class="hidden">
+        <div class="touch-visuals">
+          <div class="touch-rail left">
+            <div class="touch-rail-zero"></div>
+            <div class="touch-rail-fill" id="touch-rail-fill-left"></div>
+          </div>
+          <div class="touch-rail right">
+            <div class="touch-rail-zero"></div>
+            <div class="touch-rail-fill" id="touch-rail-fill-right"></div>
+          </div>
+          <div class="touch-mid-cue hidden" id="touch-mid-cue">
+            <div class="touch-mid-line left"></div>
+            <div class="touch-mid-line right"></div>
+            <div class="touch-mid-label" id="touch-mid-label">NITRO</div>
+          </div>
+          <div class="touch-finger left" id="touch-finger-left"></div>
+          <div class="touch-finger right" id="touch-finger-right"></div>
+        </div>
+      </div>
+
       <div id="hud" class="hidden">
         <div class="hud-top">
           <div class="panel hud-left-info">
@@ -782,6 +1119,11 @@
               <div><kbd>Backspace</kbd> Last CP &nbsp; <kbd>R</kbd> Restart</div>
               <div><kbd>Esc</kbd> Menu &nbsp; <kbd>M</kbd> Mute</div>
               <div id="hud-space-hint" class="hidden"><kbd>Space</kbd> <span id="hud-space-action">Nitro</span></div>
+            </div>
+            <div class="mobile-actions" data-touch-ignore>
+              <button type="button" class="mobile-action-btn" id="btn-hud-respawn" title="Last Checkpoint">CP</button>
+              <button type="button" class="mobile-action-btn" id="btn-hud-restart" title="Restart">↻</button>
+              <button type="button" class="mobile-action-btn" id="btn-hud-pause" title="Pause">⏸</button>
             </div>
           </div>
 
@@ -909,6 +1251,7 @@
           <div class="map-grid" id="map-grid"></div>
           <div class="controls-guide">
             <div><strong>Left Engine:</strong> <kbd>A</kbd> -30% &nbsp; <kbd>S</kbd> 30% &nbsp; <kbd>D</kbd> 70% &nbsp; <kbd>F</kbd> 100% &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Right Engine:</strong> <kbd>K</kbd> 100% &nbsp; <kbd>L</kbd> 70% &nbsp; <kbd>;</kbd> 30% &nbsp; <kbd>'</kbd> -30% &nbsp;&nbsp;|&nbsp;&nbsp; <strong>Mod Tank:</strong> Hold <kbd>Space</kbd> (Nitro / Coolant)</div>
+            <div><strong>Mobile Touch:</strong> Slide left &amp; right fingers up/down for engine throttle (higher = more throttle, release = 0%). Slide either finger toward the center to activate Nitro / Coolant while keeping throttle control.</div>
             <div><strong>Landing Boost:</strong> Cut both engines for at least 0.5s while airborne (thrusting high in the air damages standard engines!), then activate both engines right before hitting the ground to prevent damage and trigger a huge speed boost! &nbsp; <strong><kbd>Backspace</kbd>:</strong> Last CP &nbsp; <strong><kbd>R</kbd>:</strong> Restart</div>
           </div>
         </div>
