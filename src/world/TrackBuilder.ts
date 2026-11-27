@@ -10,6 +10,7 @@ export interface SampledSlice {
   wallHeight: number;
   bankingRad: number;
   feature: TrackFeature;
+  terraceHeight?: number;
 }
 
 export interface CheckpointMarkerData {
@@ -159,6 +160,7 @@ export class TrackBuilder {
       });
     }
 
+    this.computeFeatureProfiles();
     this.startSlice = this.slices[2];
     this.buildCheckpointList(map.stations, curve, approxLen);
     this.buildTerrainMesh();
@@ -269,6 +271,33 @@ export class TrackBuilder {
       }
     }
     return best;
+  }
+
+  private computeFeatureProfiles(): void {
+    // Hold cliff_drop spans level at their entry height so the drop into chasm_floor is a sheer vertical cliff
+    let i = 0;
+    while (i < this.slices.length) {
+      if (this.slices[i].feature === 'cliff_drop') {
+        const start = i;
+        while (i < this.slices.length && this.slices[i].feature === 'cliff_drop') i++;
+        const end = i - 1;
+        const cliffTopY = this.slices[Math.max(0, start - 1)].center.y;
+        for (let k = start; k <= end; k++) {
+          this.slices[k].center.y = cliffTopY;
+        }
+      } else if (this.slices[i].feature === 'split_terrace') {
+        const start = i;
+        while (i < this.slices.length && this.slices[i].feature === 'split_terrace') i++;
+        const end = i - 1;
+        const span = Math.max(1, end - start);
+        for (let k = start; k <= end; k++) {
+          const p = (k - start) / span;
+          this.slices[k].terraceHeight = Math.pow(p, 1.35) * 24.0;
+        }
+      } else {
+        i++;
+      }
+    }
   }
 
   private interpolateStationProps(
@@ -430,13 +459,13 @@ export class TrackBuilder {
             wy += trough + bank + noise * 0.7 + boulders;
             tmpCol.copy(colScreeDark).lerp(colDirtEdge, 0.35 + noise * 0.25);
           } else if (s.feature === 'split_terrace') {
-            // Left half (d < 0) is elevated +12m above right half (d > 0) with a steep droppable middle step
+            // Left half (d < 0) rises along a long gradual slope up to +24m above right half (d > 0)
             const tStep = THREE.MathUtils.clamp((2.2 - d) / 4.4, 0, 1);
-            const terraceH = tStep * tStep * (3 - 2 * tStep) * 12.0;
+            const terraceH = tStep * tStep * (3 - 2 * tStep) * (s.terraceHeight ?? 0);
             const subU = Math.abs(Math.abs(d) - halfW * 0.5) / (halfW * 0.5);
             const subTrough = subU * subU * 0.65;
             wy += terraceH + subTrough + bank * 0.4;
-            if (tStep > 0.08 && tStep < 0.92) {
+            if (tStep > 0.08 && tStep < 0.92 && (s.terraceHeight ?? 0) > 1.0) {
               tmpCol.copy(colTerra).lerp(colCliffRim, 0.45);
             } else if (d < 0) {
               tmpCol.copy(colDirtEdge).lerp(colCliffRim, uFloor > 0.85 ? 0.6 : 0.15);
@@ -734,7 +763,7 @@ export class TrackBuilder {
         const marker = new THREE.Mesh(markerGeo, pylonMat);
         marker.position.set(
           s.center.x - s.right.x * 2.4,
-          s.center.y + 13.0,
+          s.center.y + (s.terraceHeight ?? 0) + 1.0,
           s.center.z - s.right.z * 2.4
         );
         marker.rotation.y = yaw;
