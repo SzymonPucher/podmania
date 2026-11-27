@@ -2,6 +2,12 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { PodTelemetry } from '../types';
 
+interface HeatMaterialEntry {
+  mat: THREE.MeshStandardMaterial;
+  baseColor: THREE.Color;
+  baseEmissive: THREE.Color;
+}
+
 interface EngineVisualRefs {
   root: THREE.Group;
   fanGroup: THREE.Group;
@@ -11,6 +17,7 @@ interface EngineVisualRefs {
   reversePuff: THREE.Mesh;
   emitterWorldDummy: THREE.Object3D;
   pylonDummy: THREE.Object3D;
+  heatMaterials: HeatMaterialEntry[];
 }
 
 interface CableBuffer {
@@ -63,6 +70,8 @@ export class PodMeshBuilder {
   private readonly normalOuterColor = new THREE.Color(0xff7711);
   private readonly boostOuterColor = new THREE.Color(0x38bdf8);
   private readonly overloadOuterColor = new THREE.Color(0xef4444);
+  private readonly heatColor = new THREE.Color(0xff2a14);
+  private readonly heatEmissiveColor = new THREE.Color(0xff1e00);
 
   constructor() {
     this.podRoot.rotation.order = 'YXZ';
@@ -71,8 +80,11 @@ export class PodMeshBuilder {
 
     const mats = this.createMaterials();
 
-    this.leftEngine = this.buildSingleEngine(-1.35, -1, mats);
-    this.rightEngine = this.buildSingleEngine(1.35, 1, mats);
+    const leftEngineMats = this.cloneEngineMaterials(mats);
+    const rightEngineMats = this.cloneEngineMaterials(mats);
+
+    this.leftEngine = this.buildSingleEngine(-1.35, -1, leftEngineMats.mats, leftEngineMats.entries);
+    this.rightEngine = this.buildSingleEngine(1.35, 1, rightEngineMats.mats, rightEngineMats.entries);
     this.enginesGroup.add(this.leftEngine.root, this.rightEngine.root);
 
     this.buildCockpit(mats);
@@ -120,7 +132,8 @@ export class PodMeshBuilder {
 
     // Subtle engine vibration & trailing cockpit
     const overloadVib = t.airborneOverload ? 0.055 : 0;
-    const vib = (Math.abs(t.pLeft) + Math.abs(t.pRight)) * 0.008 + overloadVib;
+    const overheatVib = t.overheatedLeft || t.overheatedRight ? 0.032 : 0;
+    const vib = (Math.abs(t.pLeft) + Math.abs(t.pRight)) * 0.008 + overloadVib + overheatVib;
     this.enginesGroup.position.set(
       (Math.random() - 0.5) * vib,
       (Math.random() - 0.5) * vib,
@@ -159,6 +172,8 @@ export class PodMeshBuilder {
       this.flapFlareLeft,
       t.landingBoost,
       t.airborneOverload,
+      t.heatLeft,
+      t.overheatedLeft,
       dt,
       elapsedTime
     );
@@ -168,6 +183,8 @@ export class PodMeshBuilder {
       this.flapFlareRight,
       t.landingBoost,
       t.airborneOverload,
+      t.heatRight,
+      t.overheatedRight,
       dt,
       elapsedTime
     );
@@ -214,9 +231,25 @@ export class PodMeshBuilder {
     flare: number,
     landingBoost: number,
     airborneOverload: boolean,
+    heat: number,
+    overheated: boolean,
     dt: number,
     elapsedTime: number
   ): void {
+    // Update engine hull redness & thermal glow based on overheat level (0..100)
+    const heatFrac = THREE.MathUtils.clamp(heat / 100, 0, 1);
+    const redness = Math.pow(heatFrac, 1.15);
+    const overheatPulse = overheated ? 0.85 + 0.15 * Math.sin(elapsedTime * 16) : 1.0;
+    for (let i = 0; i < eng.heatMaterials.length; i++) {
+      const entry = eng.heatMaterials[i];
+      entry.mat.color.copy(entry.baseColor).lerp(this.heatColor, redness * 0.72);
+      entry.mat.emissive
+        .copy(entry.baseEmissive)
+        .lerp(this.heatEmissiveColor, redness * (overheated ? overheatPulse : 0.85));
+      entry.mat.emissiveIntensity =
+        1.0 + redness * (overheated ? 2.4 * overheatPulse : 1.4);
+    }
+
     // Spin 28-blade intake fan
     eng.fanGroup.rotation.z += dt * (4.0 + Math.abs(power) * 32.0 + landingBoost * 24.0);
 
@@ -337,10 +370,35 @@ export class PodMeshBuilder {
     };
   }
 
+  private cloneEngineMaterials(
+    baseMats: ReturnType<PodMeshBuilder['createMaterials']>
+  ): {
+    mats: ReturnType<PodMeshBuilder['createMaterials']>;
+    entries: HeatMaterialEntry[];
+  } {
+    const mats = { ...baseMats };
+    const entries: HeatMaterialEntry[] = [];
+    const keys: Array<
+      'steel' | 'gunmetal' | 'yellow' | 'blue' | 'maroon' | 'copper' | 'spinner'
+    > = ['steel', 'gunmetal', 'yellow', 'blue', 'maroon', 'copper', 'spinner'];
+
+    for (const key of keys) {
+      const cloned = baseMats[key].clone();
+      mats[key] = cloned;
+      entries.push({
+        mat: cloned,
+        baseColor: cloned.color.clone(),
+        baseEmissive: cloned.emissive.clone(),
+      });
+    }
+    return { mats, entries };
+  }
+
   private buildSingleEngine(
     xPos: number,
     sideSign: number,
-    mats: ReturnType<PodMeshBuilder['createMaterials']>
+    mats: ReturnType<PodMeshBuilder['createMaterials']>,
+    heatMaterials: HeatMaterialEntry[]
   ): EngineVisualRefs {
     const root = new THREE.Group();
     root.position.set(xPos, 0, 0);
@@ -620,6 +678,7 @@ export class PodMeshBuilder {
       reversePuff,
       emitterWorldDummy,
       pylonDummy,
+      heatMaterials,
     };
   }
 

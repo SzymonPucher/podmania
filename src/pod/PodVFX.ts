@@ -12,6 +12,7 @@ interface Particle {
 
 const DUST_COUNT = 160;
 const SPARK_COUNT = 80;
+const FLAME_COUNT = 120;
 
 export class PodVFX {
   public readonly group = new THREE.Group();
@@ -25,6 +26,12 @@ export class PodVFX {
   private readonly sparkPool: Particle[] = [];
   private sparkCursor = 0;
 
+  private readonly flameMesh: THREE.InstancedMesh;
+  private readonly flamePool: Particle[] = [];
+  private flameCursor = 0;
+  private flameAccumLeft = 0;
+  private flameAccumRight = 0;
+
   private readonly shockRing: THREE.Mesh;
   private shockAge = -1;
   private overloadSparkAccum = 0;
@@ -32,6 +39,10 @@ export class PodVFX {
   private readonly dummy = new THREE.Object3D();
   private readonly tmpRight = new THREE.Vector3();
   private readonly tmpSparkPos = new THREE.Vector3();
+  private readonly tmpFlameColor = new THREE.Color();
+  private readonly flameHotColor = new THREE.Color(0xffee66);
+  private readonly flameMidColor = new THREE.Color(0xff5500);
+  private readonly flameCoolColor = new THREE.Color(0x991100);
 
   constructor() {
     const dustGeo = new THREE.DodecahedronGeometry(0.45, 0);
@@ -83,6 +94,33 @@ export class PodVFX {
       this.dummy.scale.set(0, 0, 0);
       this.dummy.updateMatrix();
       this.sparkMesh.setMatrixAt(i, this.dummy.matrix);
+    }
+
+    const flameGeo = new THREE.DodecahedronGeometry(0.32, 0);
+    const flameMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      blending: THREE.AdditiveBlending,
+      transparent: true,
+      opacity: 0.88,
+      depthWrite: false,
+    });
+    this.flameMesh = new THREE.InstancedMesh(flameGeo, flameMat, FLAME_COUNT);
+    this.flameMesh.frustumCulled = false;
+    this.group.add(this.flameMesh);
+
+    for (let i = 0; i < FLAME_COUNT; i++) {
+      this.flamePool.push({
+        active: false,
+        age: 0,
+        life: 0.35,
+        pos: new THREE.Vector3(),
+        vel: new THREE.Vector3(),
+        scale: 1,
+      });
+      this.dummy.scale.set(0, 0, 0);
+      this.dummy.updateMatrix();
+      this.flameMesh.setMatrixAt(i, this.dummy.matrix);
+      this.flameMesh.setColorAt(i, this.flameHotColor);
     }
 
     // Cyan landing shockwave ring
@@ -138,6 +176,22 @@ export class PodVFX {
   }
 
   public update(t: PodTelemetry, dt: number): void {
+    // Overheated engine flame-spitting bursts (per engine)
+    this.flameAccumLeft = this.updateEngineOverheatFlames(
+      t,
+      -1.35,
+      t.overheatedLeft,
+      this.flameAccumLeft,
+      dt
+    );
+    this.flameAccumRight = this.updateEngineOverheatFlames(
+      t,
+      1.35,
+      t.overheatedRight,
+      this.flameAccumRight,
+      dt
+    );
+
     // Mid-air engine overload sparks when player applies thrust high up
     if (t.airborneOverload) {
       this.overloadSparkAccum += dt * 38;
@@ -235,6 +289,37 @@ export class PodVFX {
     }
     this.sparkMesh.instanceMatrix.needsUpdate = true;
 
+    // Update flame pool
+    for (let i = 0; i < FLAME_COUNT; i++) {
+      const p = this.flamePool[i];
+      if (!p.active) continue;
+      p.age += dt;
+      if (p.age >= p.life) {
+        p.active = false;
+        this.dummy.scale.set(0, 0, 0);
+      } else {
+        p.vel.y += 6.5 * dt;
+        p.pos.addScaledVector(p.vel, dt);
+        const u = p.age / p.life;
+        const s = p.scale * (0.75 + u * 1.1) * (1 - u * 0.88);
+        this.dummy.position.copy(p.pos);
+        this.dummy.rotation.set(u * 4, u * 5, u * 2);
+        this.dummy.scale.set(s, s, s);
+        if (u < 0.45) {
+          this.tmpFlameColor.copy(this.flameHotColor).lerp(this.flameMidColor, u / 0.45);
+        } else {
+          this.tmpFlameColor.copy(this.flameMidColor).lerp(this.flameCoolColor, (u - 0.45) / 0.55);
+        }
+        this.flameMesh.setColorAt(i, this.tmpFlameColor);
+      }
+      this.dummy.updateMatrix();
+      this.flameMesh.setMatrixAt(i, this.dummy.matrix);
+    }
+    this.flameMesh.instanceMatrix.needsUpdate = true;
+    if (this.flameMesh.instanceColor) {
+      this.flameMesh.instanceColor.needsUpdate = true;
+    }
+
     // Update shockwave ring
     if (this.shockAge >= 0) {
       this.shockAge += dt;
@@ -249,5 +334,59 @@ export class PodVFX {
         (this.shockRing.material as THREE.MeshBasicMaterial).opacity = (1 - u) * 0.9;
       }
     }
+  }
+
+  private updateEngineOverheatFlames(
+    t: PodTelemetry,
+    sideX: number,
+    overheated: boolean,
+    accum: number,
+    dt: number
+  ): number {
+    if (!overheated) {
+      return 0;
+    }
+
+    let nextAccum = accum + dt * 44;
+    this.tmpRight.set(Math.cos(t.yaw), 0, -Math.sin(t.yaw));
+    const fwdX = -Math.sin(t.yaw);
+    const fwdZ = -Math.cos(t.yaw);
+    const cosR = Math.cos(t.roll);
+    const sinR = Math.sin(t.roll);
+    const latOffset = sideX * cosR;
+    const vertOffset = sideX * sinR;
+
+    while (nextAccum >= 1) {
+      nextAccum -= 1;
+      const p = this.flamePool[this.flameCursor];
+      this.flameCursor = (this.flameCursor + 1) % FLAME_COUNT;
+
+      // Alternate between spitting out the rear exhaust and side/top cooling vents
+      const fromVent = Math.random() < 0.35;
+      const zLocal = fromVent ? -1.4 - Math.random() * 0.9 : 0.15;
+
+      p.active = true;
+      p.age = 0;
+      p.life = 0.24 + Math.random() * 0.22;
+      p.pos.set(
+        t.pos.x + this.tmpRight.x * latOffset - fwdX * zLocal + (Math.random() - 0.5) * 0.35,
+        t.pos.y + vertOffset + (fromVent ? 0.35 : 0) + (Math.random() - 0.5) * 0.3,
+        t.pos.z + this.tmpRight.z * latOffset - fwdZ * zLocal + (Math.random() - 0.5) * 0.35
+      );
+
+      const spitBackSpeed = fromVent ? 4 + Math.random() * 6 : 12 + Math.random() * 14;
+      p.vel.set(
+        t.vel.x * 0.65 - fwdX * spitBackSpeed + (Math.random() - 0.5) * 6,
+        t.vel.y * 0.5 + (fromVent ? 4 + Math.random() * 5 : (Math.random() - 0.3) * 4),
+        t.vel.z * 0.65 - fwdZ * spitBackSpeed + (Math.random() - 0.5) * 6
+      );
+      p.scale = fromVent ? 0.75 + Math.random() * 0.6 : 1.05 + Math.random() * 0.85;
+
+      if (Math.random() < 0.2) {
+        this.triggerSparks(p.pos, 1);
+      }
+    }
+
+    return nextAccum;
   }
 }

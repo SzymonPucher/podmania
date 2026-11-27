@@ -53,10 +53,16 @@ export class HudController {
   private readonly damperPctEl = document.getElementById('hud-damper-pct')!;
   private readonly damperBarEl = document.getElementById('hud-damper-bar')!;
 
+  private readonly leftWidgetEl = document.getElementById('hud-left-widget')!;
+  private readonly rightWidgetEl = document.getElementById('hud-right-widget')!;
   private readonly leftPctEl = document.getElementById('hud-left-pct')!;
   private readonly rightPctEl = document.getElementById('hud-right-pct')!;
   private readonly leftBarEl = document.getElementById('hud-left-bar')!;
   private readonly rightBarEl = document.getElementById('hud-right-bar')!;
+  private readonly leftHeatPctEl = document.getElementById('hud-left-heat-pct')!;
+  private readonly rightHeatPctEl = document.getElementById('hud-right-heat-pct')!;
+  private readonly leftHeatBarEl = document.getElementById('hud-left-heat-bar')!;
+  private readonly rightHeatBarEl = document.getElementById('hud-right-heat-bar')!;
 
   private readonly leftKeycaps = Array.from(
     document.querySelectorAll<HTMLElement>('#hud-left-keys .keycap')
@@ -332,6 +338,21 @@ export class HudController {
     this.rightBarEl.style.background =
       t.pRight < 0 ? '#f87171' : 'linear-gradient(90deg, #f59e0b, #38bdf8)';
 
+    this.updateEngineHeatHud(
+      this.leftWidgetEl,
+      this.leftHeatPctEl,
+      this.leftHeatBarEl,
+      t.heatLeft,
+      t.overheatedLeft
+    );
+    this.updateEngineHeatHud(
+      this.rightWidgetEl,
+      this.rightHeatPctEl,
+      this.rightHeatBarEl,
+      t.heatRight,
+      t.overheatedRight
+    );
+
     for (const el of this.leftKeycaps) {
       const code = el.dataset.code;
       const active = code === input.leftActiveCode;
@@ -343,6 +364,26 @@ export class HudController {
       const active = code === input.rightActiveCode;
       el.classList.toggle('active-pos', active && code !== 'Quote');
       el.classList.toggle('active-rev', active && code === 'Quote');
+    }
+  }
+
+  private updateEngineHeatHud(
+    widgetEl: HTMLElement,
+    pctEl: HTMLElement,
+    barEl: HTMLElement,
+    heat: number,
+    overheated: boolean
+  ): void {
+    const heatPct = Math.round(heat);
+    widgetEl.classList.toggle('overheated', overheated);
+    pctEl.textContent = overheated ? `OVERHEAT ${heatPct}%` : `${heatPct}%`;
+    barEl.style.width = `${heatPct}%`;
+    if (overheated || heatPct >= 85) {
+      barEl.style.background = '#ef4444';
+    } else if (heatPct >= 55) {
+      barEl.style.background = '#f97316';
+    } else {
+      barEl.style.background = '#f59e0b';
     }
   }
 

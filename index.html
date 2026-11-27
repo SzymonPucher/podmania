@@ -305,6 +305,45 @@
         flex-direction: column;
         gap: 6px;
         width: 210px;
+        padding: 4px 6px;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        transition: border-color 0.15s ease, background-color 0.15s ease;
+      }
+
+      .engine-widget.overheated {
+        border-color: rgba(248, 113, 113, 0.75);
+        background: rgba(239, 68, 68, 0.12);
+      }
+
+      .engine-widget.overheated .heat-label-val {
+        color: var(--accent-red);
+        animation: pulseWarn 0.35s infinite alternate;
+      }
+
+      .heat-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        margin-top: 1px;
+      }
+
+      .heat-bar-track {
+        height: 5px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.1);
+        overflow: hidden;
+      }
+
+      .heat-bar-fill {
+        height: 100%;
+        width: 0%;
+        background: #f59e0b;
+        transition: width 0.05s linear, background-color 0.12s ease;
       }
 
       .engine-header {
@@ -641,7 +680,7 @@
 
         <div class="hud-bottom">
           <div class="panel telemetry-cluster">
-            <div class="engine-widget">
+            <div class="engine-widget" id="hud-left-widget">
               <div class="engine-header">
                 <span>Left Engine</span>
                 <span id="hud-left-pct">0%</span>
@@ -654,6 +693,13 @@
               </div>
               <div class="thrust-bar-track">
                 <div class="thrust-bar-fill" id="hud-left-bar"></div>
+              </div>
+              <div class="heat-row">
+                <span>Heat</span>
+                <span class="heat-label-val" id="hud-left-heat-pct">0%</span>
+              </div>
+              <div class="heat-bar-track">
+                <div class="heat-bar-fill" id="hud-left-heat-bar"></div>
               </div>
             </div>
 
@@ -669,7 +715,7 @@
               </div>
             </div>
 
-            <div class="engine-widget">
+            <div class="engine-widget" id="hud-right-widget">
               <div class="engine-header">
                 <span id="hud-right-pct">0%</span>
                 <span>Right Engine</span>
@@ -682,6 +728,13 @@
               </div>
               <div class="thrust-bar-track">
                 <div class="thrust-bar-fill" id="hud-right-bar"></div>
+              </div>
+              <div class="heat-row">
+                <span class="heat-label-val" id="hud-right-heat-pct">0%</span>
+                <span>Heat</span>
+              </div>
+              <div class="heat-bar-track">
+                <div class="heat-bar-fill" id="hud-right-heat-bar"></div>
               </div>
             </div>
           </div>

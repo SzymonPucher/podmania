@@ -38,11 +38,11 @@ export const POD_CONFIG = {
   airborneDriveScale: 0.08,
 
   // Mid-Air Thrust Overload & Pre-Touchdown Ignition Window
-  minEnginesOffSec: 1.0,
+  minEnginesOffSec: 0.5,
   takeoffThrustGraceSec: 0.25,
   highAirDamageClearance: 7.5,
   highAirThrustDamageRate: 22.0,
-  thrustFlareWindowSec: 0.42,
+  thrustFlareWindowSec: 0.15,
   vectoredGroundLiftAccel: 42.0,
 
   // Landing Impact & Boost Rewards
@@ -53,6 +53,14 @@ export const POD_CONFIG = {
   vectorBoostDurationSec: 1.85,
   vectorBoostExtraAccel: 28.0,
   damagePerExcessSpeedSq: 0.24,
+  // Engine Overheat & Cooldown (% per second on 0..100 scale)
+  overheatRate100: 10.0,
+  coolRate70: 5.0,
+  coolRate30: 10.0,
+  coolRateIdle: 20.0,
+  overheatRecoverThreshold: 70.0,
+
+  // Wall Collision
   wallCollisionRadius: 2.1,
 } as const;
 

@@ -38,6 +38,10 @@ export class PodPhysics {
       omegaYaw: 0,
       pLeft: 0,
       pRight: 0,
+      heatLeft: 0,
+      heatRight: 0,
+      overheatedLeft: false,
+      overheatedRight: false,
       speedMs: 0,
       speedKmh: 0,
       groundHeight: 0,
@@ -69,6 +73,10 @@ export class PodPhysics {
     s.omegaYaw = 0;
     s.pLeft = 0;
     s.pRight = 0;
+    s.heatLeft = 0;
+    s.heatRight = 0;
+    s.overheatedLeft = false;
+    s.overheatedRight = false;
     s.speedMs = 0;
     s.speedKmh = 0;
     s.groundHeight = pos.y - POD_CONFIG.hoverHeight;
@@ -112,13 +120,35 @@ export class PodPhysics {
     s.lastLandingBoostKmh = 0;
     s.airborneOverload = false;
 
-    // 1. Engine Spooling (still rev visually during countdown!)
-    s.pLeft = this.spoolEngine(s.pLeft, input.targetLeft, dt);
-    s.pRight = this.spoolEngine(s.pRight, input.targetRight, dt);
-
     const isWrecked = s.hullIntegrity <= 0;
     const driveEnabled = allowDrive && !isWrecked;
     const hullScale = s.hullIntegrity < 30 ? 0.9 + (s.hullIntegrity / 30) * 0.1 : 1.0;
+
+    // 1. Per-Engine Overheat & Spooling (overheated engine forced idle until cooled to 70%)
+    const leftHeatState = this.updateEngineHeat(
+      s.heatLeft,
+      s.overheatedLeft,
+      driveEnabled ? input.targetLeft : 0,
+      dt
+    );
+    s.heatLeft = leftHeatState.heat;
+    s.overheatedLeft = leftHeatState.overheated;
+
+    const rightHeatState = this.updateEngineHeat(
+      s.heatRight,
+      s.overheatedRight,
+      driveEnabled ? input.targetRight : 0,
+      dt
+    );
+    s.heatRight = rightHeatState.heat;
+    s.overheatedRight = rightHeatState.overheated;
+
+    const effectiveTargetLeft = s.overheatedLeft ? 0 : input.targetLeft;
+    const effectiveTargetRight = s.overheatedRight ? 0 : input.targetRight;
+
+    // Still rev visually during countdown when not overheated
+    s.pLeft = this.spoolEngine(s.pLeft, effectiveTargetLeft, dt);
+    s.pRight = this.spoolEngine(s.pRight, effectiveTargetRight, dt);
 
     if (s.landingBoost > 0) {
       s.landingBoost = Math.max(
@@ -130,14 +160,14 @@ export class PodPhysics {
     const effLeft = driveEnabled ? s.pLeft * hullScale : 0;
     const effRight = driveEnabled ? s.pRight * hullScale : 0;
     const fwdInputLevel = driveEnabled
-      ? (Math.max(0, input.targetLeft) + Math.max(0, input.targetRight)) * 0.5
+      ? (Math.max(0, effectiveTargetLeft) + Math.max(0, effectiveTargetRight)) * 0.5
       : 0;
     const bothEnginesOff =
-      driveEnabled && input.targetLeft === 0 && input.targetRight === 0;
+      driveEnabled && effectiveTargetLeft === 0 && effectiveTargetRight === 0;
     const bothEnginesActiveForward =
-      driveEnabled && input.targetLeft > 0 && input.targetRight > 0;
+      driveEnabled && effectiveTargetLeft > 0 && effectiveTargetRight > 0;
     const minForwardInput = bothEnginesActiveForward
-      ? Math.min(input.targetLeft, input.targetRight)
+      ? Math.min(effectiveTargetLeft, effectiveTargetRight)
       : 0;
 
     const horizSpeed = Math.hypot(s.vel.x, s.vel.z);
@@ -555,5 +585,38 @@ export class PodPhysics {
       rate = POD_CONFIG.spoolUpRate;
     }
     return THREE.MathUtils.lerp(current, target, 1 - Math.exp(-rate * dt));
+  }
+
+  private updateEngineHeat(
+    heat: number,
+    overheated: boolean,
+    target: number,
+    dt: number
+  ): { heat: number; overheated: boolean } {
+    if (overheated) {
+      const nextHeat = Math.max(0, heat - POD_CONFIG.coolRateIdle * dt);
+      return {
+        heat: nextHeat,
+        overheated: nextHeat > POD_CONFIG.overheatRecoverThreshold,
+      };
+    }
+
+    const absTarget = Math.abs(target);
+    let deltaPerSec: number;
+    if (absTarget >= 0.99) {
+      deltaPerSec = POD_CONFIG.overheatRate100;
+    } else if (absTarget >= 0.65) {
+      deltaPerSec = -POD_CONFIG.coolRate70;
+    } else if (absTarget >= 0.25) {
+      deltaPerSec = -POD_CONFIG.coolRate30;
+    } else {
+      deltaPerSec = -POD_CONFIG.coolRateIdle;
+    }
+
+    const nextHeat = THREE.MathUtils.clamp(heat + deltaPerSec * dt, 0, 100);
+    return {
+      heat: nextHeat,
+      overheated: nextHeat >= 100,
+    };
   }
 }

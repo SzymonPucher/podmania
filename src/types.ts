@@ -96,6 +96,10 @@ export interface PodTelemetry {
   omegaYaw: number;
   pLeft: number;
   pRight: number;
+  heatLeft: number;
+  heatRight: number;
+  overheatedLeft: boolean;
+  overheatedRight: boolean;
   speedMs: number;
   speedKmh: number;
   groundHeight: number;
