@@ -993,6 +993,13 @@
         background: rgba(255, 255, 255, 0.14);
       }
 
+      @media (orientation: portrait) and (max-width: 900px) {
+        .touch-rail {
+          top: 55%;
+          bottom: 8%;
+        }
+      }
+
       .touch-rail.left {
         left: calc(16px + env(safe-area-inset-left, 0px));
       }

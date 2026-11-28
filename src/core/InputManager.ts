@@ -33,6 +33,15 @@ export const TOUCH_SLIDER_REV_FRAC = 0.92;
 export const TOUCH_SLIDER_FULL_FRAC =
   TOUCH_SLIDER_TOP_FRAC + (TOUCH_SLIDER_REV_FRAC - TOUCH_SLIDER_TOP_FRAC) * 0.2;
 
+/** Portrait phone slider calibration: half the length, from middle of screen to bottom */
+export const TOUCH_SLIDER_PORTRAIT_TOP_FRAC = 0.55;
+export const TOUCH_SLIDER_PORTRAIT_ZERO_FRAC = 0.86;
+export const TOUCH_SLIDER_PORTRAIT_ZERO_DEADZONE = 0.015;
+export const TOUCH_SLIDER_PORTRAIT_REV_FRAC = 0.92;
+export const TOUCH_SLIDER_PORTRAIT_FULL_FRAC =
+  TOUCH_SLIDER_PORTRAIT_TOP_FRAC +
+  (TOUCH_SLIDER_PORTRAIT_REV_FRAC - TOUCH_SLIDER_PORTRAIT_TOP_FRAC) * 0.2;
+
 /** Horizontal middle-zone thresholds in normalized viewport X (0 = left, 1 = right) */
 export const TOUCH_MID_LEFT_THRESHOLD = 0.28;
 export const TOUCH_MID_RIGHT_THRESHOLD = 0.72;
@@ -261,22 +270,37 @@ export class InputManager {
   }
 
   private computeThrottleFromY(yNorm: number): number {
-    const zeroTop = TOUCH_SLIDER_ZERO_FRAC - TOUCH_SLIDER_ZERO_DEADZONE;
-    const zeroBottom = TOUCH_SLIDER_ZERO_FRAC + TOUCH_SLIDER_ZERO_DEADZONE;
+    const isPortraitPhone =
+      window.innerHeight > window.innerWidth && window.innerWidth <= 900;
+    const fullFrac = isPortraitPhone
+      ? TOUCH_SLIDER_PORTRAIT_FULL_FRAC
+      : TOUCH_SLIDER_FULL_FRAC;
+    const zeroFrac = isPortraitPhone
+      ? TOUCH_SLIDER_PORTRAIT_ZERO_FRAC
+      : TOUCH_SLIDER_ZERO_FRAC;
+    const zeroDeadzone = isPortraitPhone
+      ? TOUCH_SLIDER_PORTRAIT_ZERO_DEADZONE
+      : TOUCH_SLIDER_ZERO_DEADZONE;
+    const revFrac = isPortraitPhone
+      ? TOUCH_SLIDER_PORTRAIT_REV_FRAC
+      : TOUCH_SLIDER_REV_FRAC;
 
-    if (yNorm <= TOUCH_SLIDER_FULL_FRAC) {
+    const zeroTop = zeroFrac - zeroDeadzone;
+    const zeroBottom = zeroFrac + zeroDeadzone;
+
+    if (yNorm <= fullFrac) {
       return 1.0;
     }
     if (yNorm < zeroTop) {
-      return (zeroTop - yNorm) / (zeroTop - TOUCH_SLIDER_FULL_FRAC);
+      return (zeroTop - yNorm) / (zeroTop - fullFrac);
     }
     if (yNorm <= zeroBottom) {
       return 0;
     }
-    if (yNorm >= TOUCH_SLIDER_REV_FRAC) {
+    if (yNorm >= revFrac) {
       return -0.3;
     }
-    return -0.3 * ((yNorm - zeroBottom) / (TOUCH_SLIDER_REV_FRAC - zeroBottom));
+    return -0.3 * ((yNorm - zeroBottom) / (revFrac - zeroBottom));
   }
 
   private resetFinger(finger: TouchFingerState): void {
