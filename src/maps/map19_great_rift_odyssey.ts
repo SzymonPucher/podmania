@@ -5,7 +5,7 @@ export const MAP19_GREAT_RIFT_ODYSSEY: MapDefinition = {
   name: 'Great Rift Odyssey',
   subtitle: 'Hard • 3+ Min Continental Marathon',
   description:
-    'Epic 12.5km cross-continental desert expedition spanning ten distinct sectors: archways, dune seas, monolith arenas, stalactite caves, river valleys, double-deckers, and abyssal cliffs.',
+    'Epic 12.5km cross-continental desert expedition spanning ten distinct sectors: archways, dune seas, monolith arenas, stalactite caves, river valleys, elevated causeways, and abyssal cliffs.',
   playable: true,
   difficulty: 'hard',
   biome: 'desert',
@@ -87,15 +87,15 @@ export const MAP19_GREAT_RIFT_ODYSSEY: MapDefinition = {
     { pos: [-165, -90, -6165], canyonWidth: 30, wallHeight: 34, bankingDeg: 0, feature: 'rough_scree' },
     { pos: [-120, -92, -6275], canyonWidth: 30, wallHeight: 34, bankingDeg: 0, feature: 'rough_scree', checkpoint: true },
 
-    // Sector 7: Giant Stepped Cascade & Double-Decker Span (7.5 - 8.9km)
+    // Sector 7: Giant Stepped Cascade & Skybridge Causeway (7.5 - 8.9km)
     { pos: [-80, -100, -6385], canyonWidth: 30, wallHeight: 36, bankingDeg: 0, feature: 'stepped_cascade' },
     { pos: [-40, -110, -6495], canyonWidth: 30, wallHeight: 38, bankingDeg: 0, feature: 'stepped_cascade' },
     { pos: [0, -120, -6605], canyonWidth: 30, wallHeight: 38, bankingDeg: 0, feature: 'stepped_cascade' },
     { pos: [40, -130, -6715], canyonWidth: 30, wallHeight: 38, bankingDeg: 0, feature: 'stepped_cascade' },
-    { pos: [75, -134, -6825], canyonWidth: 32, wallHeight: 34, bankingDeg: 0, feature: 'double_decker' },
-    { pos: [105, -136, -6935], canyonWidth: 32, wallHeight: 34, bankingDeg: 0, feature: 'double_decker' },
-    { pos: [135, -138, -7045], canyonWidth: 32, wallHeight: 34, bankingDeg: 0, feature: 'double_decker' },
-    { pos: [165, -140, -7155], canyonWidth: 32, wallHeight: 34, bankingDeg: 0, feature: 'double_decker' },
+    { pos: [75, -134, -6825], canyonWidth: 32, wallHeight: 34, bankingDeg: 0, feature: 'bridge_deck' },
+    { pos: [105, -136, -6935], canyonWidth: 32, wallHeight: 34, bankingDeg: 0, feature: 'bridge_deck' },
+    { pos: [135, -138, -7045], canyonWidth: 32, wallHeight: 34, bankingDeg: 0, feature: 'bridge_deck' },
+    { pos: [165, -140, -7155], canyonWidth: 32, wallHeight: 34, bankingDeg: 0, feature: 'bridge_deck' },
     { pos: [190, -142, -7265], canyonWidth: 30, wallHeight: 34, bankingDeg: 0, feature: 'landing_slope', checkpoint: true },
 
     // Sector 8: Wind-Swept Escarpment & Sheer Cliff Plunge (8.9 - 10.3km)

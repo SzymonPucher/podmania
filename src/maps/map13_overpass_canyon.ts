@@ -3,9 +3,9 @@ import type { MapDefinition } from '../types';
 export const MAP13_OVERPASS_CANYON: MapDefinition = {
   id: 'map13_overpass_canyon',
   name: 'Twin-Span Viaduct',
-  subtitle: 'Medium • Multi-Deck Geode Gorge',
+  subtitle: 'Medium • Split-Route Geode Gorge',
   description:
-    'Multi-tier route playground combining stacked double-decker viaducts, an asymmetric canyon fork, a 56m split terrace, and a geode cavern.',
+    'Multi-tier route playground combining split ridge channels, an asymmetric canyon fork, a 56m split terrace, tabletop jumps, and a geode cavern.',
   playable: true,
   difficulty: 'medium',
   biome: 'desert_geode',
@@ -15,11 +15,11 @@ export const MAP13_OVERPASS_CANYON: MapDefinition = {
     bronze: 84000,
   },
   stations: [
-    // Sector 1: Stone Arch Entry & Double-Decker #1
+    // Sector 1: Stone Arch Entry & Twin-Channel Ridge Split
     { pos: [0, 0, 20], canyonWidth: 30, wallHeight: 26, bankingDeg: 0, feature: 'rock_arch_sequence' },
-    { pos: [0, -2, -75], canyonWidth: 32, wallHeight: 28, bankingDeg: 0, feature: 'double_decker' },
-    { pos: [0, -4, -175], canyonWidth: 32, wallHeight: 28, bankingDeg: 0, feature: 'double_decker' },
-    { pos: [0, -6, -275], canyonWidth: 32, wallHeight: 28, bankingDeg: 0, feature: 'double_decker' },
+    { pos: [0, -2, -75], canyonWidth: 34, wallHeight: 28, bankingDeg: 0, feature: 'ridge_split' },
+    { pos: [0, -4, -175], canyonWidth: 34, wallHeight: 28, bankingDeg: 0, feature: 'ridge_split' },
+    { pos: [0, -6, -275], canyonWidth: 34, wallHeight: 28, bankingDeg: 0, feature: 'ridge_split' },
     { pos: [15, -8, -375], canyonWidth: 30, wallHeight: 30, bankingDeg: 8, feature: 'landing_slope', checkpoint: true },
 
     // Sector 2: Asymmetric Fork & River Crossing
@@ -41,10 +41,10 @@ export const MAP13_OVERPASS_CANYON: MapDefinition = {
     { pos: [-35, -16, -1355], canyonWidth: 56, wallHeight: 30, bankingDeg: 0, feature: 'split_terrace' },
     { pos: [-95, -18, -1435], canyonWidth: 34, wallHeight: 30, bankingDeg: 0, feature: 'landing_slope', checkpoint: true },
 
-    // Sector 5: Second Double-Decker Span
-    { pos: [-140, -20, -1525], canyonWidth: 32, wallHeight: 32, bankingDeg: 0, feature: 'double_decker' },
-    { pos: [-175, -22, -1620], canyonWidth: 32, wallHeight: 32, bankingDeg: 0, feature: 'double_decker' },
-    { pos: [-200, -24, -1720], canyonWidth: 32, wallHeight: 32, bankingDeg: 0, feature: 'double_decker' },
+    // Sector 5: Elevated Tabletop Plateau Span
+    { pos: [-140, -20, -1525], canyonWidth: 32, wallHeight: 32, bankingDeg: 0, feature: 'tabletop_jump' },
+    { pos: [-175, -22, -1620], canyonWidth: 32, wallHeight: 32, bankingDeg: 0, feature: 'tabletop_jump' },
+    { pos: [-200, -24, -1720], canyonWidth: 32, wallHeight: 32, bankingDeg: 0, feature: 'tabletop_jump' },
     { pos: [-210, -26, -1820], canyonWidth: 30, wallHeight: 32, bankingDeg: 0, feature: 'landing_slope', checkpoint: true },
 
     // Sector 6: Steep Finish Chute

@@ -5,7 +5,7 @@ export const MAP20_SKYFALL_RUINS: MapDefinition = {
   name: 'Skyfall Ruined Viaduct',
   subtitle: 'Expert • Crumbling Spans & Void Gaps',
   description:
-    'Shattered high-altitude stone viaducts with missing outer slabs, fierce crosswind gusts, energy gate chicanes, and two must-clear void leaps.',
+    'Shattered high-altitude stone viaducts with missing outer slabs, fierce crosswind gusts, rock barrier chicanes, and two must-clear void leaps.',
   playable: true,
   difficulty: 'expert',
   biome: 'skyway',
@@ -37,10 +37,10 @@ export const MAP20_SKYFALL_RUINS: MapDefinition = {
     { pos: [405, -48, -1110], canyonWidth: 56, wallHeight: 22, bankingDeg: 0, feature: 'split_terrace' },
     { pos: [400, -50, -1205], canyonWidth: 34, wallHeight: 18, bankingDeg: 0, feature: 'landing_slope', checkpoint: true },
 
-    // Sector 4: Energy Gate Chicane Corridor
-    { pos: [375, -52, -1300], canyonWidth: 26, wallHeight: 16, bankingDeg: -8, feature: 'energy_gates' },
-    { pos: [330, -54, -1390], canyonWidth: 26, wallHeight: 16, bankingDeg: -10, feature: 'energy_gates' },
-    { pos: [270, -56, -1470], canyonWidth: 26, wallHeight: 16, bankingDeg: -10, feature: 'energy_gates' },
+    // Sector 4: Rock Barrier Chicane Corridor
+    { pos: [375, -52, -1300], canyonWidth: 26, wallHeight: 16, bankingDeg: -8, feature: 'half_rock_right' },
+    { pos: [330, -54, -1390], canyonWidth: 26, wallHeight: 16, bankingDeg: -10, feature: 'half_rock_left' },
+    { pos: [270, -56, -1470], canyonWidth: 26, wallHeight: 16, bankingDeg: -10, feature: 'half_rock_right' },
     { pos: [200, -58, -1540], canyonWidth: 26, wallHeight: 16, bankingDeg: 0, feature: 'bridge_deck', checkpoint: true },
 
     // Sector 5: Second Steep Dive & Void Leap

@@ -525,7 +525,7 @@ export class PodPhysics {
       } else if (currentFeature === 'rough_scree') {
         terrainDragMult = 1.28;
         terrainGripMult = 0.9;
-      } else if (currentFeature === 'bridge_deck' || currentFeature === 'double_decker' || currentFeature === 'spiral_helix') {
+      } else if (currentFeature === 'bridge_deck' || currentFeature === 'spiral_helix') {
         terrainDragMult = 0.9;
         terrainGripMult = 1.3;
       } else if (currentFeature === 'half_pipe') {

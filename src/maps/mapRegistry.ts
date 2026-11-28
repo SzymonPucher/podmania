@@ -46,7 +46,7 @@ export const DIFFICULTY_TIERS: {
   {
     id: 'hard',
     label: 'Hard',
-    subtitle: 'Rift Veteran • High-risk ledges, plasma chicanes & continental marathons',
+    subtitle: 'Rift Veteran • High-risk ledges, barrier chicanes & continental marathons',
     color: '#f59e0b',
   },
   {

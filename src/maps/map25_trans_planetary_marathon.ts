@@ -5,7 +5,7 @@ export const MAP25_TRANS_PLANETARY_MARATHON: MapDefinition = {
   name: 'Trans-Planetary Crucible',
   subtitle: 'Expert • 3:45+ Ultimate Volcanic Marathon',
   description:
-    'The ultimate 13.8km endurance gauntlet: molten hazard basins, crumbling bridges, two void leaps, a 200m monolith arena, stalactite tubes, plasma gates, helical spires, and 44m cliff drops.',
+    'The ultimate 13.8km endurance gauntlet: molten hazard basins, crumbling bridges, two void leaps, a 200m monolith arena, stalactite tubes, barrier chicanes, helical spires, and 44m cliff drops.',
   playable: true,
   difficulty: 'expert',
   biome: 'volcanic',
@@ -70,16 +70,16 @@ export const MAP25_TRANS_PLANETARY_MARATHON: MapDefinition = {
     { pos: [-55, -156, -3675], canyonWidth: 32, wallHeight: 38, bankingDeg: 0, feature: 'debris_field' },
     { pos: [-40, -156, -3790], canyonWidth: 28, wallHeight: 38, bankingDeg: 0, feature: 'normal', checkpoint: true },
 
-    // Sector 6: Double-Decker Span & Plasma Energy Gates (6.3 - 7.7km)
-    { pos: [-25, -158, -3905], canyonWidth: 32, wallHeight: 36, bankingDeg: 0, feature: 'double_decker' },
-    { pos: [-10, -160, -4020], canyonWidth: 32, wallHeight: 36, bankingDeg: 0, feature: 'double_decker' },
-    { pos: [5, -162, -4135], canyonWidth: 32, wallHeight: 36, bankingDeg: 0, feature: 'double_decker' },
-    { pos: [20, -164, -4250], canyonWidth: 32, wallHeight: 36, bankingDeg: 0, feature: 'double_decker' },
+    // Sector 6: Volcanic Causeway Span & Barrier Chicanes (6.3 - 7.7km)
+    { pos: [-25, -158, -3905], canyonWidth: 32, wallHeight: 36, bankingDeg: 0, feature: 'bridge_deck' },
+    { pos: [-10, -160, -4020], canyonWidth: 32, wallHeight: 36, bankingDeg: 0, feature: 'bridge_deck' },
+    { pos: [5, -162, -4135], canyonWidth: 32, wallHeight: 36, bankingDeg: 0, feature: 'bridge_deck' },
+    { pos: [20, -164, -4250], canyonWidth: 32, wallHeight: 36, bankingDeg: 0, feature: 'bridge_deck' },
     { pos: [35, -166, -4365], canyonWidth: 28, wallHeight: 36, bankingDeg: 0, feature: 'landing_slope' },
-    { pos: [50, -168, -4480], canyonWidth: 26, wallHeight: 34, bankingDeg: 0, feature: 'energy_gates' },
-    { pos: [65, -170, -4595], canyonWidth: 26, wallHeight: 34, bankingDeg: 0, feature: 'energy_gates' },
-    { pos: [80, -172, -4710], canyonWidth: 26, wallHeight: 34, bankingDeg: 0, feature: 'energy_gates' },
-    { pos: [95, -174, -4825], canyonWidth: 26, wallHeight: 34, bankingDeg: 0, feature: 'energy_gates' },
+    { pos: [50, -168, -4480], canyonWidth: 26, wallHeight: 34, bankingDeg: 0, feature: 'half_rock_left' },
+    { pos: [65, -170, -4595], canyonWidth: 26, wallHeight: 34, bankingDeg: 0, feature: 'half_rock_right' },
+    { pos: [80, -172, -4710], canyonWidth: 26, wallHeight: 34, bankingDeg: 0, feature: 'half_rock_left' },
+    { pos: [95, -174, -4825], canyonWidth: 26, wallHeight: 34, bankingDeg: 0, feature: 'half_rock_right' },
     { pos: [110, -174, -4940], canyonWidth: 28, wallHeight: 36, bankingDeg: 0, feature: 'normal', checkpoint: true },
 
     // Sector 7: Off-Camber Shale & Crosswind Ridge (7.7 - 9.1km)
@@ -120,8 +120,8 @@ export const MAP25_TRANS_PLANETARY_MARATHON: MapDefinition = {
     { pos: [-195, -324, -8015], canyonWidth: 22, wallHeight: 36, bankingDeg: -12, feature: 'stalactite_corridor' },
     { pos: [-205, -328, -8135], canyonWidth: 22, wallHeight: 36, bankingDeg: -14, feature: 'stalactite_corridor' },
     { pos: [-195, -330, -8255], canyonWidth: 22, wallHeight: 36, bankingDeg: 10, feature: 'stalactite_corridor' },
-    { pos: [-165, -332, -8375], canyonWidth: 26, wallHeight: 38, bankingDeg: 0, feature: 'energy_gates' },
-    { pos: [-135, -336, -8495], canyonWidth: 26, wallHeight: 38, bankingDeg: 0, feature: 'energy_gates' },
+    { pos: [-165, -332, -8375], canyonWidth: 26, wallHeight: 38, bankingDeg: 0, feature: 'half_rock_right' },
+    { pos: [-135, -336, -8495], canyonWidth: 26, wallHeight: 38, bankingDeg: 0, feature: 'half_rock_left' },
     { pos: [-95, -340, -8615], canyonWidth: 34, wallHeight: 38, bankingDeg: 24, feature: 'wallride_bowl' },
     { pos: [-25, -342, -8725], canyonWidth: 34, wallHeight: 38, bankingDeg: 28, feature: 'wallride_bowl' },
     { pos: [65, -344, -8815], canyonWidth: 34, wallHeight: 38, bankingDeg: 24, feature: 'wallride_bowl' },
