@@ -1,3 +1,5 @@
+import { POD_CONFIG } from '../pod/PodConfig';
+
 export type HowToPlayTabId =
   | 'controls'
   | 'turning'
@@ -33,6 +35,11 @@ export interface FrameRenderResult {
   phaseTone: 'neutral' | 'amber' | 'cyan' | 'green' | 'red';
   progress: number;
 }
+
+const COAST_OFF_SEC = POD_CONFIG.minEnginesOffSec;
+const FLARE_WINDOW_MS = Math.round(POD_CONFIG.thrustFlareWindowSec * 1000);
+const HIGH_AIR_CLEARANCE_M = POD_CONFIG.highAirDamageClearance;
+const TAKEOFF_GRACE_SEC = POD_CONFIG.takeoffThrustGraceSec;
 
 export const HOW_TO_PLAY_TOPICS: HowToPlayTopic[] = [
   {
@@ -104,18 +111,19 @@ export const HOW_TO_PLAY_TOPICS: HowToPlayTopic[] = [
     title: 'Jump Cooldown & Vector Boost',
     defaultScene: 'landings_boost',
     subOptions: [
-      { id: 'landings_boost', label: 'Perfect Vector Boost' },
-      { id: 'landings_avoid', label: 'What to Avoid' },
+      { id: 'landings_boost', label: 'Safe Landing & Boost' },
+      { id: 'landings_avoid', label: 'Air Damage & Crashes' },
     ],
     takeaways: {
       landings_boost: [
-        '<strong>1. Cut Both Engines:</strong> After launch, keep both engines at <strong>0%</strong> for at least <strong>0.5s</strong> until <em>COAST READY</em>.',
-        '<strong>2. Ignite Right Before Ground:</strong> Fire both engines together just before touchdown (<strong>≤0.15s</strong>) for <strong>0% damage</strong> and a massive <strong>Vector Boost</strong>.',
-        '<strong>Flying Engines Mod:</strong> Bypasses the 0.5s cut &amp; air overload — keep engines on to land safely (no Vector Boost).',
+        `<strong>1. Shut Off Mid-Air (${COAST_OFF_SEC}s Cooldown):</strong> Cut <strong>both</strong> boosters to <strong>0%</strong> for at least <strong>${COAST_OFF_SEC}s</strong> until <em>COAST READY</em>. Firing above ${HIGH_AIR_CLEARANCE_M}m (after ${TAKEOFF_GRACE_SEC}s grace) damages your hull and resets the timer.`,
+        `<strong>2. Ignite Within ${FLARE_WINDOW_MS} ms Before Touchdown:</strong> Turn <strong>both</strong> boosters back on in the final <strong>${FLARE_WINDOW_MS} ms</strong> before hitting the ground for <strong>0% damage</strong> and a <strong>Vector Boost</strong>.`,
+        '<strong>Any Forward % Works:</strong> You do <em>not</em> need 100% — any forward thrust on both engines (30%, 70%, 100%, or touch >0%) triggers a safe landing, with higher % giving a stronger speed boost.',
+        '<strong>Flying Engines Mod:</strong> Prevents airborne booster damage and skips the cooldown (keep boosters on to land safely, without Vector Boost).',
       ],
       landings_avoid: [
-        '<strong>Air Overload:</strong> Firing standard engines above <strong>7.5m</strong> clearance drains hull continuously and resets your 0.5s Coast Ready timer.',
-        '<strong>Hard Impact:</strong> Touching down without flaring deals <strong>-6% to -55%</strong> hull damage and scrubs <strong>35%</strong> of your forward speed.',
+        `<strong>Airborne Booster Damage:</strong> Using standard boosters mid-air above <strong>${HIGH_AIR_CLEARANCE_M}m</strong> (after ${TAKEOFF_GRACE_SEC}s takeoff grace) damages your hull continuously and resets the <strong>${COAST_OFF_SEC}s</strong> cooldown.`,
+        `<strong>Missed ${FLARE_WINDOW_MS} ms Flare:</strong> Landing without both boosters active (or before the ${COAST_OFF_SEC}s cooldown finishes) causes <strong>-6% to -55%</strong> hull damage and scrubs <strong>35%</strong> speed.`,
       ],
     },
   },
@@ -1307,10 +1315,10 @@ function renderLandingsBoost(
   ctx.lineTo(w, groundY + 12);
   ctx.stroke();
 
-  // 7.5m High-Air reference line
+  // High-Air reference line from POD_CONFIG
   const highAirY = groundY - 82;
   ctx.setLineDash([5, 5]);
-  ctx.strokeStyle = 'rgba(248, 113, 113, 0.35)';
+  ctx.strokeStyle = 'rgba(248, 113, 113, 0.4)';
   ctx.lineWidth = 1.5;
   ctx.beginPath();
   ctx.moveTo(rampEndX, highAirY);
@@ -1318,14 +1326,29 @@ function renderLandingsBoost(
   ctx.stroke();
   ctx.setLineDash([]);
   ctx.font = '700 9.5px "Segoe UI", system-ui, sans-serif';
-  ctx.fillStyle = 'rgba(248, 113, 113, 0.75)';
+  ctx.fillStyle = 'rgba(248, 113, 113, 0.8)';
   ctx.textAlign = 'center';
-  ctx.fillText('HIGH AIR (>7.5m)', w * 0.46, highAirY - 6);
+  ctx.fillText(`AIRBORNE THRUST >${HIGH_AIR_CLEARANCE_M}m = HULL DMG`, w * 0.46, highAirY - 6);
+
+  // 150 ms pre-touchdown flare target zone
+  const flareZoneX = landStartX + 6;
+  const flareZoneY = groundY - 22;
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(flareZoneX, flareZoneY, 24, Math.PI * 0.9, Math.PI * 1.65);
+  ctx.strokeStyle = t >= 4.2 && t < 5.1 ? C.green : 'rgba(52, 211, 153, 0.35)';
+  ctx.lineWidth = t >= 4.2 && t < 5.1 ? 3 : 2;
+  ctx.stroke();
+  ctx.font = '700 9px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle = C.green;
+  ctx.textAlign = 'right';
+  ctx.fillText(`${FLARE_WINDOW_MS}ms WINDOW`, flareZoneX - 18, flareZoneY - 18);
+  ctx.restore();
 
   // Trajectory & pod state
   // 0.0-1.3: Ramp launch (engines on)
-  // 1.3-4.3: Coasting mid-air (engines 0%, 0.5s timer fills -> COAST READY)
-  // 4.3-5.1: Flare window! Both engines ignite right before ground
+  // 1.3-4.4: Coasting mid-air (engines 0%, 0.5s cooldown fills -> COAST READY)
+  // 4.4-5.1: Flare window (<=150ms before ground)! Both engines ignite (any >0% works)
   // 5.1-7.2: Touchdown! Cyan shockwave + Vector Boost surge
   let px = w * 0.08;
   let py = groundY - 14;
@@ -1333,6 +1356,7 @@ function renderLandingsBoost(
   let thrust = 1;
   let boost = false;
   let coastFrac = 0;
+  let stepIndex = 0;
   let phaseText = '1. LAUNCH OFF RAMP';
   let phaseTone: FrameRenderResult['phaseTone'] = 'amber';
 
@@ -1342,6 +1366,7 @@ function renderLandingsBoost(
     py = k < 0.5 ? groundY - 14 : lerp(groundY - 14, groundY - 60, (k - 0.5) * 2);
     pitch = k < 0.5 ? 0 : -0.35;
     thrust = 1;
+    stepIndex = 0;
   } else if (t < 5.1) {
     const airK = (t - 1.3) / (5.1 - 1.3);
     px = lerp(rampEndX, landStartX + 20, airK);
@@ -1350,15 +1375,17 @@ function renderLandingsBoost(
     pitch = lerp(-0.35, 0.28, airK);
     const isFlare = t >= 4.45;
     thrust = isFlare ? 1 : 0;
-    coastFrac = clamp01((t - 1.3) / 1.1);
+    coastFrac = clamp01((t - 1.3) / 1.15);
     if (!isFlare) {
+      stepIndex = coastFrac >= 1 ? 2 : 1;
       phaseText =
         coastFrac >= 1
-          ? '2. COAST READY ✓ — WAIT FOR GROUND'
-          : '2. CUT BOTH ENGINES (0%) FOR 0.5s';
+          ? `COAST READY ✓ — WAIT FOR ${FLARE_WINDOW_MS}ms WINDOW`
+          : `1. SHUT OFF BOTH BOOSTERS (${COAST_OFF_SEC}s COOLDOWN)`;
       phaseTone = coastFrac >= 1 ? 'cyan' : 'amber';
     } else {
-      phaseText = '3. ENGINES ON NOW! (≤0.15s FLARE)';
+      stepIndex = 3;
+      phaseText = `2. IGNITE BOTH (≤${FLARE_WINDOW_MS}ms) — ANY >0% WORKS!`;
       phaseTone = 'green';
     }
   } else {
@@ -1368,7 +1395,8 @@ function renderLandingsBoost(
     pitch = 0.08;
     thrust = 1;
     boost = true;
-    phaseText = 'VECTOR BOOST! 0% DMG + HUGE SPEED SURGE';
+    stepIndex = 3;
+    phaseText = '3. SAFE LANDING + VECTOR BOOST! (0% DMG)';
     phaseTone = 'green';
 
     // Shockwave ring at touchdown
@@ -1384,18 +1412,18 @@ function renderLandingsBoost(
 
   drawSidePod(ctx, px, py, pitch, thrust, boost, false, timeSec);
 
-  // Coast Ready radial badge top-right
+  // Coast Ready radial badge + live booster % readout top-right
   if (t >= 1.3 && t < 5.1) {
-    const rx = w - 82;
-    const ry = 48;
+    const rx = w - 62;
+    const ry = 46;
     ctx.beginPath();
-    ctx.arc(rx, ry, 20, 0, Math.PI * 2);
+    ctx.arc(rx, ry, 22, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.14)';
     ctx.lineWidth = 4;
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.arc(rx, ry, 20, -Math.PI / 2, -Math.PI / 2 + coastFrac * Math.PI * 2);
+    ctx.arc(rx, ry, 22, -Math.PI / 2, -Math.PI / 2 + coastFrac * Math.PI * 2);
     ctx.strokeStyle = coastFrac >= 1 ? C.green : C.cyan;
     ctx.lineWidth = 4;
     ctx.stroke();
@@ -1403,8 +1431,32 @@ function renderLandingsBoost(
     ctx.font = '800 9.5px "Segoe UI", system-ui, sans-serif';
     ctx.fillStyle = coastFrac >= 1 ? C.green : C.text;
     ctx.textAlign = 'center';
-    ctx.fillText(coastFrac >= 1 ? 'READY' : '0.5s', rx, ry + 3);
+    ctx.fillText(coastFrac >= 1 ? 'READY' : `${COAST_OFF_SEC}s`, rx, ry + 3);
   }
+
+  // Live L/R booster status readout (below phase badge)
+  ctx.font = '800 10px "Segoe UI", system-ui, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillStyle = thrust === 0 ? C.cyan : C.green;
+  ctx.fillText(
+    thrust === 0 ? 'BOOSTERS: 0% / 0% (OFF)' : 'BOOSTERS: ON (ANY >0% SAFE)',
+    14,
+    52
+  );
+
+  // Compact 3-step timeline indicator centered along bottom
+  const steps = [
+    `1. CUT (${COAST_OFF_SEC}s)`,
+    '2. READY',
+    `3. FLARE (${FLARE_WINDOW_MS}ms)`,
+  ];
+  ctx.textAlign = 'center';
+  const stepStr = steps
+    .map((s, idx) => (idx + 1 === stepIndex ? `[${s}]` : s))
+    .join('  →  ');
+  ctx.fillStyle = stepIndex >= 2 ? C.green : C.muted;
+  ctx.font = w < 380 ? '700 8.5px "Segoe UI", system-ui, sans-serif' : '700 9.5px "Segoe UI", system-ui, sans-serif';
+  ctx.fillText(stepStr, w * 0.5, h - 12);
 
   return { phaseText, phaseTone, progress };
 }
@@ -1455,8 +1507,13 @@ function renderLandingsAvoid(
   const arc = Math.sin(clamp01(localT * 1.15) * Math.PI);
   let py = lerp(groundY - 56, groundY - 22, clamp01(localT * 1.15)) - arc * 102;
   let hull = 100;
-  let phaseText = 'AIR OVERLOAD: THRUSTING >7.5m DRAINS HULL!';
+  let phaseText = `AIR OVERLOAD: BOOSTERS >${HIGH_AIR_CLEARANCE_M}m DAMAGE HULL!`;
   const phaseTone: FrameRenderResult['phaseTone'] = 'red';
+
+  ctx.font = '700 9.5px "Segoe UI", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(248, 113, 113, 0.85)';
+  ctx.textAlign = 'center';
+  ctx.fillText(`HIGH AIR (>${HIGH_AIR_CLEARANCE_M}m)`, w * 0.45, highAirY - 6);
 
   if (isOverloadBeat) {
     hull = Math.round(lerp(100, 68, localT));
@@ -1489,7 +1546,7 @@ function renderLandingsAvoid(
     }
     phaseText =
       localT < 0.7
-        ? 'NO FLARE BEFORE TOUCHDOWN...'
+        ? `MISSED ${FLARE_WINDOW_MS}ms FLARE BEFORE TOUCHDOWN...`
         : 'HARD IMPACT! -36% HULL & -35% SPEED';
     drawSidePod(ctx, px, py, 0.22, 0, false, localT >= 0.7, timeSec);
   }
