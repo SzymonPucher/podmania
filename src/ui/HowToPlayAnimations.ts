@@ -1280,9 +1280,13 @@ function renderLandingsBoost(
   h: number,
   timeSec: number
 ): FrameRenderResult {
-  const dur = 7.2;
+  const dur = 13.0;
   const t = timeSec % dur;
   const progress = t / dur;
+
+  const isSecondRun = t >= 6.8;
+  const rt = isSecondRun ? t - 6.8 : t;
+  const runDur = isSecondRun ? 6.2 : 6.8;
 
   drawBackdrop(ctx, w, h, 0);
 
@@ -1333,111 +1337,160 @@ function renderLandingsBoost(
   // 150 ms pre-touchdown flare target zone
   const flareZoneX = landStartX + 6;
   const flareZoneY = groundY - 22;
+  const inFlareWindow = !isSecondRun && rt >= 4.78 && rt < 5.05;
   ctx.save();
   ctx.beginPath();
-  ctx.arc(flareZoneX, flareZoneY, 24, Math.PI * 0.9, Math.PI * 1.65);
-  ctx.strokeStyle = t >= 4.2 && t < 5.1 ? C.green : 'rgba(52, 211, 153, 0.35)';
-  ctx.lineWidth = t >= 4.2 && t < 5.1 ? 3 : 2;
+  ctx.arc(flareZoneX, flareZoneY, 22, Math.PI * 0.9, Math.PI * 1.65);
+  ctx.strokeStyle = inFlareWindow ? C.green : 'rgba(52, 211, 153, 0.35)';
+  ctx.lineWidth = inFlareWindow ? 3 : 2;
   ctx.stroke();
   ctx.font = '700 9px "Segoe UI", system-ui, sans-serif';
   ctx.fillStyle = C.green;
   ctx.textAlign = 'right';
-  ctx.fillText(`${FLARE_WINDOW_MS}ms WINDOW`, flareZoneX - 18, flareZoneY - 18);
+  ctx.fillText(`${FLARE_WINDOW_MS}ms WINDOW`, flareZoneX - 18, flareZoneY - 16);
   ctx.restore();
 
-  // Trajectory & pod state
-  // 0.0-1.3: Ramp launch (engines on)
-  // 1.3-4.4: Coasting mid-air (engines 0%, 0.5s cooldown fills -> COAST READY)
-  // 4.4-5.1: Flare window (<=150ms before ground)! Both engines ignite (any >0% works)
-  // 5.1-7.2: Touchdown! Cyan shockwave + Vector Boost surge
+  // Trajectory & pod state for Run 1 (with flare right before ground) and Run 2 (no power applied)
+  const launchEnd = 1.2;
+  const touchTime = 5.05;
+  const flareStart = 4.82; // right before touching the ground
+
   let px = w * 0.08;
   let py = groundY - 14;
   let pitch = 0;
   let thrust = 1;
   let boost = false;
+  let overload = false;
+  let hull = 100;
   let coastFrac = 0;
   let stepIndex = 0;
-  let phaseText = '1. LAUNCH OFF RAMP';
+  let phaseText = 'RUN 1/2 · LAUNCH OFF RAMP';
   let phaseTone: FrameRenderResult['phaseTone'] = 'amber';
 
-  if (t < 1.3) {
-    const k = t / 1.3;
+  if (rt < launchEnd) {
+    const k = rt / launchEnd;
     px = lerp(w * 0.06, rampEndX, k);
     py = k < 0.5 ? groundY - 14 : lerp(groundY - 14, groundY - 60, (k - 0.5) * 2);
     pitch = k < 0.5 ? 0 : -0.35;
     thrust = 1;
     stepIndex = 0;
-  } else if (t < 5.1) {
-    const airK = (t - 1.3) / (5.1 - 1.3);
+    phaseText = isSecondRun
+      ? 'RUN 2/2 (NO FLARE) · LAUNCH OFF RAMP'
+      : 'RUN 1/2 (WITH FLARE) · LAUNCH OFF RAMP';
+  } else if (rt < touchTime) {
+    const airK = (rt - launchEnd) / (touchTime - launchEnd);
     px = lerp(rampEndX, landStartX + 20, airK);
     const arc = Math.sin(airK * Math.PI);
     py = lerp(groundY - 60, groundY - 24, airK) - arc * 105;
     pitch = lerp(-0.35, 0.28, airK);
-    const isFlare = t >= 4.45;
-    thrust = isFlare ? 1 : 0;
-    coastFrac = clamp01((t - 1.3) / 1.15);
-    if (!isFlare) {
-      stepIndex = coastFrac >= 1 ? 2 : 1;
-      phaseText =
-        coastFrac >= 1
-          ? `COAST READY ✓ — WAIT FOR ${FLARE_WINDOW_MS}ms WINDOW`
-          : `1. SHUT OFF BOTH BOOSTERS (${COAST_OFF_SEC}s COOLDOWN)`;
-      phaseTone = coastFrac >= 1 ? 'cyan' : 'amber';
-    } else {
+    coastFrac = clamp01((rt - launchEnd) / 1.1);
+
+    if (!isSecondRun && rt >= flareStart) {
+      thrust = 1;
       stepIndex = 3;
-      phaseText = `2. IGNITE BOTH (≤${FLARE_WINDOW_MS}ms) — ANY >0% WORKS!`;
+      phaseText = `RUN 1/2 · IGNITE RIGHT BEFORE GROUND (≤${FLARE_WINDOW_MS}ms)!`;
       phaseTone = 'green';
+    } else {
+      thrust = 0;
+      stepIndex = coastFrac >= 1 ? 2 : 1;
+      if (isSecondRun) {
+        phaseText =
+          coastFrac >= 1
+            ? 'RUN 2/2 · READY, BUT NO POWER APPLIED...'
+            : `RUN 2/2 · SHUT OFF BOOSTERS (${COAST_OFF_SEC}s)`;
+        phaseTone = coastFrac >= 1 ? 'red' : 'amber';
+      } else {
+        phaseText =
+          coastFrac >= 1
+            ? `RUN 1/2 · COAST READY ✓ — WAIT FOR GROUND`
+            : `RUN 1/2 · SHUT OFF BOOSTERS (${COAST_OFF_SEC}s COOLDOWN)`;
+        phaseTone = coastFrac >= 1 ? 'cyan' : 'amber';
+      }
     }
   } else {
-    const k = (t - 5.1) / 2.1;
-    px = lerp(landStartX + 20, w * 0.94, k);
-    py = lerp(groundY - 24, groundY - 2, k);
-    pitch = 0.08;
-    thrust = 1;
-    boost = true;
-    stepIndex = 3;
-    phaseText = '3. SAFE LANDING + VECTOR BOOST! (0% DMG)';
-    phaseTone = 'green';
+    const k = clamp01((rt - touchTime) / (runDur - touchTime));
+    if (!isSecondRun) {
+      px = lerp(landStartX + 20, w * 0.94, k);
+      py = lerp(groundY - 24, groundY - 2, k);
+      pitch = 0.08;
+      thrust = 1;
+      boost = true;
+      stepIndex = 3;
+      phaseText = 'RUN 1/2 · SAFE LANDING + VECTOR BOOST! (0% DMG)';
+      phaseTone = 'green';
 
-    // Shockwave ring at touchdown
-    if (k < 0.45) {
-      const sk = k / 0.45;
-      ctx.beginPath();
-      ctx.ellipse(landStartX + 20, groundY - 10, 12 + sk * 46, 5 + sk * 14, 0.08, 0, Math.PI * 2);
-      ctx.strokeStyle = `rgba(56, 189, 248, ${1 - sk})`;
-      ctx.lineWidth = 3;
-      ctx.stroke();
+      if (k < 0.45) {
+        const sk = k / 0.45;
+        ctx.beginPath();
+        ctx.ellipse(landStartX + 20, groundY - 10, 12 + sk * 46, 5 + sk * 14, 0.08, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(56, 189, 248, ${1 - sk})`;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
+    } else {
+      // No power applied: hard impact! Slows down, hull drops, red shockwave & sparks
+      px = lerp(landStartX + 20, w * 0.81, Math.pow(k, 0.65));
+      py = lerp(groundY - 24, groundY - 7, k);
+      pitch = 0.24;
+      thrust = 0;
+      overload = true;
+      hull = 64;
+      stepIndex = 2;
+      phaseText = 'RUN 2/2 · NO POWER APPLIED → HARD IMPACT! (-36% HULL)';
+      phaseTone = 'red';
+
+      if (k < 0.55) {
+        const sk = k / 0.55;
+        ctx.beginPath();
+        ctx.ellipse(landStartX + 20, groundY - 10, 10 + sk * 42, 4 + sk * 12, 0.08, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(248, 113, 113, ${1 - sk})`;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+      }
     }
   }
 
-  drawSidePod(ctx, px, py, pitch, thrust, boost, false, timeSec);
+  drawSidePod(ctx, px, py, pitch, thrust, boost, overload, timeSec);
 
-  // Coast Ready radial badge + live booster % readout top-right
-  if (t >= 1.3 && t < 5.1) {
-    const rx = w - 62;
-    const ry = 46;
+  // Coast Ready radial badge while airborne
+  if (rt >= launchEnd && rt < touchTime) {
+    const rx = w - 52;
+    const ry = 82;
     ctx.beginPath();
-    ctx.arc(rx, ry, 22, 0, Math.PI * 2);
+    ctx.arc(rx, ry, 18, 0, Math.PI * 2);
     ctx.strokeStyle = 'rgba(255,255,255,0.14)';
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3.5;
     ctx.stroke();
 
     ctx.beginPath();
-    ctx.arc(rx, ry, 22, -Math.PI / 2, -Math.PI / 2 + coastFrac * Math.PI * 2);
+    ctx.arc(rx, ry, 18, -Math.PI / 2, -Math.PI / 2 + coastFrac * Math.PI * 2);
     ctx.strokeStyle = coastFrac >= 1 ? C.green : C.cyan;
-    ctx.lineWidth = 4;
+    ctx.lineWidth = 3.5;
     ctx.stroke();
 
-    ctx.font = '800 9.5px "Segoe UI", system-ui, sans-serif';
+    ctx.font = '800 8.5px "Segoe UI", system-ui, sans-serif';
     ctx.fillStyle = coastFrac >= 1 ? C.green : C.text;
     ctx.textAlign = 'center';
     ctx.fillText(coastFrac >= 1 ? 'READY' : `${COAST_OFF_SEC}s`, rx, ry + 3);
   }
 
+  // Compact Hull bar top-right
+  drawGaugeBar(
+    ctx,
+    w - 156,
+    24,
+    136,
+    8,
+    hull / 100,
+    hull > 75 ? C.cyan : C.red,
+    'Hull',
+    `${hull}%`
+  );
+
   // Live L/R booster status readout (below phase badge)
   ctx.font = '800 10px "Segoe UI", system-ui, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillStyle = thrust === 0 ? C.cyan : C.green;
+  ctx.fillStyle = thrust === 0 ? (isSecondRun && rt >= touchTime ? C.red : C.cyan) : C.green;
   ctx.fillText(
     thrust === 0 ? 'BOOSTERS: 0% / 0% (OFF)' : 'BOOSTERS: ON (ANY >0% SAFE)',
     14,
@@ -1454,7 +1507,7 @@ function renderLandingsBoost(
   const stepStr = steps
     .map((s, idx) => (idx + 1 === stepIndex ? `[${s}]` : s))
     .join('  →  ');
-  ctx.fillStyle = stepIndex >= 2 ? C.green : C.muted;
+  ctx.fillStyle = isSecondRun && rt >= touchTime ? C.red : stepIndex >= 2 ? C.green : C.muted;
   ctx.font = w < 380 ? '700 8.5px "Segoe UI", system-ui, sans-serif' : '700 9.5px "Segoe UI", system-ui, sans-serif';
   ctx.fillText(stepStr, w * 0.5, h - 12);
 
