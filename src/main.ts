@@ -5,6 +5,7 @@ import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPa
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 
 import { AudioEngine } from './core/AudioEngine';
+import { FullscreenManager } from './core/FullscreenManager';
 import { InputManager } from './core/InputManager';
 import { compareMedals, StorageManager } from './core/StorageManager';
 import { getMapById } from './maps/mapRegistry';
@@ -26,6 +27,7 @@ import { EnvironmentSetup } from './world/EnvironmentSetup';
 import { TrackBuilder } from './world/TrackBuilder';
 
 class PodManiaApp {
+  private readonly appEl: HTMLElement;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene: THREE.Scene;
   private readonly camera: THREE.PerspectiveCamera;
@@ -34,8 +36,11 @@ class PodManiaApp {
 
   private readonly storage = new StorageManager();
   private readonly audio = new AudioEngine();
+  private readonly fullscreen: FullscreenManager;
   private readonly input: InputManager;
   private readonly hud: HudController;
+  private resizeRafId: number | null = null;
+  private fullscreenResizeTimer: number | null = null;
 
   private readonly physics = new PodPhysics();
   private readonly podMesh = new PodMeshBuilder();
@@ -63,24 +68,26 @@ class PodManiaApp {
   private readonly tmpCamRight = new THREE.Vector3();
 
   constructor() {
-    const appEl = document.getElementById('app')!;
+    this.appEl = document.getElementById('app')!;
+    const { width: initW, height: initH } = this.getViewportSize();
 
     this.renderer = new THREE.WebGLRenderer({
       antialias: true,
       powerPreference: 'high-performance',
     });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    const initDpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.renderer.setPixelRatio(initDpr);
+    this.renderer.setSize(initW, initH, false);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.08;
-    appEl.prepend(this.renderer.domElement);
+    this.appEl.prepend(this.renderer.domElement);
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(
       62,
-      window.innerWidth / window.innerHeight,
+      initW / initH,
       0.2,
       3600
     );
@@ -92,9 +99,11 @@ class PodManiaApp {
 
     // Post-processing with subtle bloom for plasma binder, jets & gates
     this.composer = new EffectComposer(this.renderer);
+    this.composer.setPixelRatio(initDpr);
+    this.composer.setSize(initW, initH);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     const bloom = new UnrealBloomPass(
-      new THREE.Vector2(window.innerWidth, window.innerHeight),
+      new THREE.Vector2(initW, initH),
       0.35,
       0.35,
       1.05
@@ -116,20 +125,39 @@ class PodManiaApp {
       this.input.attachTouchElement(touchEl);
     }
 
+    this.fullscreen = new FullscreenManager({
+      onChange: (isFullscreen, didExit) => {
+        this.hud.setFullscreenState(isFullscreen, this.fullscreen.isSupported());
+        this.scheduleResize();
+        if (this.fullscreenResizeTimer !== null) {
+          window.clearTimeout(this.fullscreenResizeTimer);
+        }
+        // Catch delayed Android/Firefox system bar animations
+        this.fullscreenResizeTimer = window.setTimeout(() => {
+          this.fullscreenResizeTimer = null;
+          this.scheduleResize();
+        }, 160);
+
+        if (didExit) {
+          this.pauseRace();
+        }
+      },
+    });
+
     this.hud = new HudController({
       onSelectMap: (mapId) => this.loadAndStartMap(mapId),
       onSelectModification: (modId) => this.selectModification(modId),
       onPause: () => this.handleEscape(),
-      onResume: () => {
-        if (this.raceState === 'PAUSED') {
-          this.raceState = 'RACING';
-          this.hud.setState('RACING');
-        }
-      },
+      onResume: () => this.resumeRace(),
       onRestart: () => this.startCountdown(),
       onRespawn: () => this.respawnAtCheckpoint(),
       onBackToMenu: () => this.showMenu(),
+      onToggleFullscreen: () => this.fullscreen.toggle(),
     });
+    this.hud.setFullscreenState(
+      this.fullscreen.isFullscreen(),
+      this.fullscreen.isSupported()
+    );
 
     this.selectedMod = this.storage.getSelectedModification();
     this.physics.setModification(this.selectedMod);
@@ -139,7 +167,24 @@ class PodManiaApp {
     this.loadMapScene('map1_dustveil');
     this.showMenu();
 
-    window.addEventListener('resize', () => this.onResize());
+    window.addEventListener('resize', () => this.scheduleResize());
+    window.visualViewport?.addEventListener('resize', () => this.scheduleResize());
+    screen.orientation?.addEventListener('change', () => this.scheduleResize());
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => this.scheduleResize());
+      ro.observe(this.appEl);
+    }
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        this.pauseRace();
+        this.audio.suspend();
+      } else {
+        this.audio.resume();
+        this.scheduleResize();
+      }
+    });
+
+    this.registerServiceWorker();
     requestAnimationFrame((t) => this.loop(t));
   }
 
@@ -221,6 +266,7 @@ class PodManiaApp {
     );
     this.hud.setState('COUNTDOWN');
     this.hud.updateCountdown(this.countdownSec);
+    this.fullscreen.setWakeLockActive(true);
     this.audio.playCountdownBeep(false);
   }
 
@@ -243,6 +289,7 @@ class PodManiaApp {
     this.accumulator = 0;
     this.raceState = 'RACING';
     this.hud.setState('RACING');
+    this.fullscreen.setWakeLockActive(true);
   }
 
   private showMenu(): void {
@@ -252,18 +299,31 @@ class PodManiaApp {
     this.raceState = 'MENU';
     this.hud.renderMapMenu(this.storage, this.selectedMod);
     this.hud.setState('MENU');
+    this.fullscreen.setWakeLockActive(false);
     this.audio.updateEngines(0, 0, 0, 0, false, false);
+  }
+
+  private pauseRace(): void {
+    if (this.raceState !== 'RACING') return;
+    this.input.clearTouch();
+    this.raceState = 'PAUSED';
+    this.hud.setState('PAUSED');
+    this.fullscreen.setWakeLockActive(false);
+    this.audio.updateEngines(0, 0, 0, 0, false, false);
+  }
+
+  private resumeRace(): void {
+    if (this.raceState !== 'PAUSED') return;
+    this.raceState = 'RACING';
+    this.hud.setState('RACING');
+    this.fullscreen.setWakeLockActive(true);
   }
 
   private handleEscape(): void {
     if (this.raceState === 'RACING') {
-      this.input.clearTouch();
-      this.raceState = 'PAUSED';
-      this.hud.setState('PAUSED');
-      this.audio.updateEngines(0, 0, 0, 0, false, false);
+      this.pauseRace();
     } else if (this.raceState === 'PAUSED') {
-      this.raceState = 'RACING';
-      this.hud.setState('RACING');
+      this.resumeRace();
     } else if (
       this.raceState === 'FINISHED' ||
       this.raceState === 'WRECKING' ||
@@ -294,6 +354,7 @@ class PodManiaApp {
     this.accumulator = 0;
     this.raceState = 'WRECKING';
     this.hud.setState('WRECKING');
+    this.fullscreen.setWakeLockActive(false);
     this.hud.updateTouchControls(this.input.getTouchState(), st);
     this.hud.updateWreckSequence(
       this.wreckTimerSec,
@@ -343,6 +404,7 @@ class PodManiaApp {
       compareMedals(prevBestMedal, 'silver') < 0;
 
     this.hud.setState('FINISHED');
+    this.fullscreen.setWakeLockActive(false);
     this.hud.showFinishScreen({
       timeMs: this.raceTimeMs,
       medal,
@@ -616,13 +678,52 @@ class PodManiaApp {
     requestAnimationFrame((t) => this.loop(t));
   }
 
+  private getViewportSize(): { width: number; height: number } {
+    const rawW =
+      this.appEl.clientWidth ||
+      window.visualViewport?.width ||
+      window.innerWidth;
+    const rawH =
+      this.appEl.clientHeight ||
+      window.visualViewport?.height ||
+      window.innerHeight;
+    return {
+      width: Math.max(1, Math.round(rawW)),
+      height: Math.max(1, Math.round(rawH)),
+    };
+  }
+
+  private scheduleResize(): void {
+    if (this.resizeRafId !== null) return;
+    this.resizeRafId = requestAnimationFrame(() => {
+      this.resizeRafId = null;
+      this.onResize();
+    });
+  }
+
   private onResize(): void {
-    const w = window.innerWidth;
-    const h = window.innerHeight;
+    const { width: w, height: h } = this.getViewportSize();
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(w, h);
+    this.renderer.setPixelRatio(dpr);
+    this.renderer.setSize(w, h, false);
+    this.composer.setPixelRatio(dpr);
     this.composer.setSize(w, h);
+  }
+
+  private registerServiceWorker(): void {
+    const isProd = Boolean(
+      (import.meta as unknown as { env?: { PROD?: boolean } }).env?.PROD
+    );
+    if (!isProd || !('serviceWorker' in navigator)) {
+      return;
+    }
+    window.addEventListener('load', () => {
+      void navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => {
+        /* ignore service worker registration errors */
+      });
+    });
   }
 }
 

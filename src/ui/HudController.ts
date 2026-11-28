@@ -44,6 +44,7 @@ export interface HudActions {
   onRestart: () => void;
   onRespawn: () => void;
   onBackToMenu: () => void;
+  onToggleFullscreen: () => void;
 }
 
 export class HudController {
@@ -134,12 +135,38 @@ export class HudController {
     document.getElementById('btn-hud-pause')?.addEventListener('click', () => this.actions.onPause());
     document.getElementById('btn-hud-toggle')?.addEventListener('click', () => this.toggleMinimalHud());
     document.getElementById('btn-pause-hud')?.addEventListener('click', () => this.toggleMinimalHud());
+    document.getElementById('btn-hud-fullscreen')?.addEventListener('click', () => this.actions.onToggleFullscreen());
+    document.getElementById('btn-pause-fullscreen')?.addEventListener('click', () => this.actions.onToggleFullscreen());
+    document.getElementById('btn-menu-fullscreen')?.addEventListener('click', () => this.actions.onToggleFullscreen());
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyH' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
         this.toggleMinimalHud();
       }
     });
     this.applyMinimalHud();
+  }
+
+  public setFullscreenState(isFullscreen: boolean, isSupported: boolean): void {
+    const hudBtn = document.getElementById('btn-hud-fullscreen');
+    const pauseBtn = document.getElementById('btn-pause-fullscreen');
+    const menuBtn = document.getElementById('btn-menu-fullscreen');
+
+    for (const btn of [hudBtn, pauseBtn, menuBtn]) {
+      if (!btn) continue;
+      btn.classList.toggle('hidden', !isSupported);
+      btn.setAttribute('aria-pressed', isFullscreen ? 'true' : 'false');
+    }
+
+    if (hudBtn) {
+      hudBtn.classList.toggle('active-fs', isFullscreen);
+      hudBtn.title = isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen';
+    }
+    if (pauseBtn) {
+      pauseBtn.textContent = isFullscreen ? 'Exit Fullscreen' : 'Fullscreen';
+    }
+    if (menuBtn) {
+      menuBtn.textContent = isFullscreen ? 'Exit Fullscreen' : 'Fullscreen';
+    }
   }
 
   public toggleMinimalHud(): void {

@@ -88,6 +88,7 @@ export class InputManager {
   private readonly handleTouchStartBound: (e: TouchEvent) => void;
   private readonly handleTouchMoveBound: (e: TouchEvent) => void;
   private readonly handleTouchEndBound: (e: TouchEvent) => void;
+  private readonly handleContextMenuBound: (e: Event) => void;
 
   constructor(callbacks: InputCallbacks = {}) {
     this.callbacks = callbacks;
@@ -100,6 +101,7 @@ export class InputManager {
     this.handleTouchStartBound = this.handleTouchStart.bind(this);
     this.handleTouchMoveBound = this.handleTouchMove.bind(this);
     this.handleTouchEndBound = this.handleTouchEnd.bind(this);
+    this.handleContextMenuBound = (e: Event) => e.preventDefault();
 
     window.addEventListener('keydown', this.handleKeyDownBound);
     window.addEventListener('keyup', this.handleKeyUpBound);
@@ -114,6 +116,7 @@ export class InputManager {
     el.addEventListener('touchmove', this.handleTouchMoveBound, { passive: false });
     el.addEventListener('touchend', this.handleTouchEndBound, { passive: false });
     el.addEventListener('touchcancel', this.handleTouchEndBound, { passive: false });
+    el.addEventListener('contextmenu', this.handleContextMenuBound);
   }
 
   public detachTouchElement(): void {
@@ -122,6 +125,7 @@ export class InputManager {
     this.touchElement.removeEventListener('touchmove', this.handleTouchMoveBound);
     this.touchElement.removeEventListener('touchend', this.handleTouchEndBound);
     this.touchElement.removeEventListener('touchcancel', this.handleTouchEndBound);
+    this.touchElement.removeEventListener('contextmenu', this.handleContextMenuBound);
     this.touchElement = null;
   }
 
@@ -195,8 +199,10 @@ export class InputManager {
     this.touchState.hasUsedTouch = true;
     this.callbacks.onAnyInteraction?.();
 
-    const width = Math.max(1, window.innerWidth);
-    const midX = width * 0.5;
+    const rect = this.touchElement?.getBoundingClientRect();
+    const left = rect ? rect.left : 0;
+    const width = Math.max(1, rect && rect.width > 0 ? rect.width : window.innerWidth);
+    const midX = left + width * 0.5;
 
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
@@ -251,15 +257,20 @@ export class InputManager {
   }
 
   private updateFingerFromTouch(side: 'left' | 'right', touch: Touch): void {
-    const width = Math.max(1, window.innerWidth);
-    const height = Math.max(1, window.innerHeight);
-    const xNorm = Math.max(0, Math.min(1, touch.clientX / width));
-    const yNorm = Math.max(0, Math.min(1, touch.clientY / height));
+    const rect = this.touchElement?.getBoundingClientRect();
+    const left = rect ? rect.left : 0;
+    const top = rect ? rect.top : 0;
+    const width = Math.max(1, rect && rect.width > 0 ? rect.width : window.innerWidth);
+    const height = Math.max(1, rect && rect.height > 0 ? rect.height : window.innerHeight);
+    const localX = touch.clientX - left;
+    const localY = touch.clientY - top;
+    const xNorm = Math.max(0, Math.min(1, localX / width));
+    const yNorm = Math.max(0, Math.min(1, localY / height));
 
     const finger = side === 'left' ? this.touchState.left : this.touchState.right;
     finger.active = true;
-    finger.clientX = touch.clientX;
-    finger.clientY = touch.clientY;
+    finger.clientX = localX;
+    finger.clientY = localY;
     finger.xNorm = xNorm;
     finger.yNorm = yNorm;
     finger.throttle = this.computeThrottleFromY(yNorm);

@@ -72,6 +72,22 @@ export class AudioEngine {
     return this.muted;
   }
 
+  public suspend(): void {
+    if (this.ctx && this.ctx.state === 'running') {
+      void this.ctx.suspend().catch(() => {
+        /* ignore */
+      });
+    }
+  }
+
+  public resume(): void {
+    if (this.ctx && this.ctx.state === 'suspended') {
+      void this.ctx.resume().catch(() => {
+        /* ignore */
+      });
+    }
+  }
+
   public updateEngines(
     pLeft: number,
     pRight: number,

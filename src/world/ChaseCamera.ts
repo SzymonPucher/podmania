@@ -82,8 +82,12 @@ export class ChaseCamera {
       t.landingBoost * 0.75,
       t.nitroActive ? 0.85 : 0
     );
-    const targetFov =
-      THREE.MathUtils.lerp(62, 84, speedFrac) + boostFovFactor * 9.0;
+    const portraitFovBoost =
+      camera.aspect < 1 ? THREE.MathUtils.clamp((1 - camera.aspect) * 28, 0, 18) : 0;
+    const targetFov = Math.min(
+      104,
+      THREE.MathUtils.lerp(62, 84, speedFrac) + boostFovFactor * 9.0 + portraitFovBoost
+    );
     if (Math.abs(camera.fov - targetFov) > 0.05) {
       camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, 1 - Math.exp(-7.5 * dt));
       camera.updateProjectionMatrix();
