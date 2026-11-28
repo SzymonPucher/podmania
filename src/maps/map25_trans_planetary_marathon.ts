@@ -24,7 +24,7 @@ export const MAP25_TRANS_PLANETARY_MARATHON: MapDefinition = {
     { pos: [-165, -38, -505], canyonWidth: 34, wallHeight: 36, bankingDeg: 0, feature: 'ridge_split' },
     { pos: [-225, -40, -605], canyonWidth: 34, wallHeight: 36, bankingDeg: 0, feature: 'ridge_split' },
     { pos: [-270, -35, -685], canyonWidth: 26, wallHeight: 32, bankingDeg: 0, feature: 'jump_lip' },
-    { pos: [-300, -40, -735], canyonWidth: 28, wallHeight: 16, bankingDeg: 0, feature: 'void_gap' },
+    { pos: [-300, -40, -735], canyonWidth: 28, wallHeight: 16, bankingDeg: 0, feature: 'void_gap', voidGapLengthM: 48 },
     { pos: [-335, -50, -790], canyonWidth: 30, wallHeight: 36, bankingDeg: 0, feature: 'landing_slope', checkpoint: true },
 
     // Sector 2: Molten Lava Pit & Crumbling Causeway (1.2 - 2.5km)
@@ -102,7 +102,7 @@ export const MAP25_TRANS_PLANETARY_MARATHON: MapDefinition = {
     { pos: [230, -276, -6590], canyonWidth: 26, wallHeight: 38, bankingDeg: 0, feature: 'normal' },
     { pos: [210, -290, -6700], canyonWidth: 26, wallHeight: 38, bankingDeg: 0, feature: 'normal' },
     { pos: [195, -285, -6775], canyonWidth: 26, wallHeight: 32, bankingDeg: 0, feature: 'jump_lip' },
-    { pos: [180, -290, -6830], canyonWidth: 28, wallHeight: 16, bankingDeg: 0, feature: 'void_gap' },
+    { pos: [180, -290, -6830], canyonWidth: 28, wallHeight: 16, bankingDeg: 0, feature: 'void_gap', voidGapLengthM: 53 },
     { pos: [165, -300, -6890], canyonWidth: 30, wallHeight: 38, bankingDeg: 0, feature: 'landing_slope', checkpoint: true },
 
     // Sector 9: Molten Labyrinth & Crumbling Viaduct (10.6 - 12.2km)

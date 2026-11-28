@@ -10,6 +10,7 @@ export interface SampledSlice {
   wallHeight: number;
   bankingRad: number;
   feature: TrackFeature;
+  voidGapLengthM?: number;
   terraceHeight?: number;
   stepOffset?: number;
   windDir?: number;
@@ -187,6 +188,7 @@ export class TrackBuilder {
         wallHeight: stationProps.wallHeight,
         bankingRad: THREE.MathUtils.degToRad(stationProps.bankingDeg),
         feature: stationProps.feature,
+        voidGapLengthM: stationProps.voidGapLengthM,
       });
     }
 
@@ -413,6 +415,20 @@ export class TrackBuilder {
           }
           this.slices[k].stepOffset = h;
         }
+      } else if (feat === 'void_gap') {
+        const start = i;
+        while (i < this.slices.length && this.slices[i].feature === 'void_gap') i++;
+        const end = i - 1;
+        const targetLen = this.slices[start].voidGapLengthM;
+        if (targetLen !== undefined && targetLen > 0) {
+          const takeoffDist = this.slices[Math.max(0, start - 1)].distance;
+          for (let k = start; k <= end; k++) {
+            const nextDist = this.slices[Math.min(this.slices.length - 1, k + 1)].distance;
+            if (nextDist - takeoffDist > targetLen + 0.5 && k > start) {
+              this.slices[k].feature = 'landing_slope';
+            }
+          }
+        }
       } else if (feat === 'crosswind_zone') {
         const start = i;
         while (i < this.slices.length && this.slices[i].feature === 'crosswind_zone') i++;
@@ -431,7 +447,13 @@ export class TrackBuilder {
   private interpolateStationProps(
     stations: TrackStationDef[],
     u: number
-  ): { canyonWidth: number; wallHeight: number; bankingDeg: number; feature: TrackFeature } {
+  ): {
+    canyonWidth: number;
+    wallHeight: number;
+    bankingDeg: number;
+    feature: TrackFeature;
+    voidGapLengthM?: number;
+  } {
     if (this.isLoop) {
       const n = stations.length;
       const wrappedU = ((u % 1) + 1) % 1;
@@ -441,11 +463,13 @@ export class TrackBuilder {
       const t = fIdx - Math.floor(fIdx);
       const s0 = stations[i0];
       const s1 = stations[i1];
+      const active = t < 0.5 ? s0 : s1;
       return {
         canyonWidth: lerp(s0.canyonWidth, s1.canyonWidth, t),
         wallHeight: lerp(s0.wallHeight, s1.wallHeight, t),
         bankingDeg: lerp(s0.bankingDeg, s1.bankingDeg, t),
-        feature: (t < 0.5 ? s0.feature : s1.feature) ?? 'normal',
+        feature: active.feature ?? 'normal',
+        voidGapLengthM: active.voidGapLengthM,
       };
     }
 
@@ -455,12 +479,14 @@ export class TrackBuilder {
     const t = fIdx - i0;
     const s0 = stations[i0];
     const s1 = stations[i1];
+    const active = t < 0.5 ? s0 : s1;
 
     return {
       canyonWidth: lerp(s0.canyonWidth, s1.canyonWidth, t),
       wallHeight: lerp(s0.wallHeight, s1.wallHeight, t),
       bankingDeg: lerp(s0.bankingDeg, s1.bankingDeg, t),
-      feature: (t < 0.5 ? s0.feature : s1.feature) ?? 'normal',
+      feature: active.feature ?? 'normal',
+      voidGapLengthM: active.voidGapLengthM,
     };
   }
 

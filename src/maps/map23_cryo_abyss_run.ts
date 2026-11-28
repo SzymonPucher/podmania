@@ -34,7 +34,7 @@ export const MAP23_CRYO_ABYSS_RUN: MapDefinition = {
     { pos: [265, -46, -975], canyonWidth: 25, wallHeight: 34, bankingDeg: 0, feature: 'normal' },
     { pos: [240, -60, -1070], canyonWidth: 25, wallHeight: 34, bankingDeg: 0, feature: 'normal' },
     { pos: [220, -55, -1140], canyonWidth: 25, wallHeight: 28, bankingDeg: 0, feature: 'jump_lip' },
-    { pos: [205, -60, -1195], canyonWidth: 28, wallHeight: 14, bankingDeg: 0, feature: 'void_gap' },
+    { pos: [205, -60, -1195], canyonWidth: 28, wallHeight: 14, bankingDeg: 0, feature: 'void_gap', voidGapLengthM: 88 },
     { pos: [190, -70, -1255], canyonWidth: 30, wallHeight: 34, bankingDeg: 0, feature: 'landing_slope', checkpoint: true },
 
     // Sector 4:Hanging Icicle Stalactite Corridor

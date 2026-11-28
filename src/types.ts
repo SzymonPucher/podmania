@@ -82,6 +82,8 @@ export interface TrackStationDef {
   bankingDeg: number;
   feature?: TrackFeature;
   checkpoint?: boolean;
+  /** Optional cap on `void_gap` span length in meters (trims trailing void slices to `landing_slope`). */
+  voidGapLengthM?: number;
 }
 
 export interface MedalTimesMs {

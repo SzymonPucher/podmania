@@ -20,7 +20,7 @@ export const MAP18_WIDOWMAKER_HELIX: MapDefinition = {
     { pos: [0, -14, -75], canyonWidth: 26, wallHeight: 30, bankingDeg: 0, feature: 'normal' },
     { pos: [0, -28, -170], canyonWidth: 26, wallHeight: 30, bankingDeg: 0, feature: 'normal' },
     { pos: [0, -23, -245], canyonWidth: 26, wallHeight: 26, bankingDeg: 0, feature: 'jump_lip' },
-    { pos: [0, -28, -300], canyonWidth: 28, wallHeight: 16, bankingDeg: 0, feature: 'void_gap' },
+    { pos: [0, -28, -300], canyonWidth: 28, wallHeight: 16, bankingDeg: 0, feature: 'void_gap', voidGapLengthM: 68 },
     { pos: [0, -38, -360], canyonWidth: 30, wallHeight: 32, bankingDeg: 0, feature: 'landing_slope', checkpoint: true },
 
     // Sector 2: 360° Obsidian Helix Descent
