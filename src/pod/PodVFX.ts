@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { MapBiome, PodTelemetry } from '../types';
+import { getHullMalfunctionTier } from './PodConfig';
 
 interface Particle {
   active: boolean;
@@ -53,6 +54,9 @@ export class PodVFX {
   private wreckFlameAccum = 0;
   private wreckSmokeAccum = 0;
   private overloadSparkAccum = 0;
+  private malfunctionSmokeAccum = 0;
+  private malfunctionSparkAccum = 0;
+  private malfunctionBackfireAccum = 0;
 
   private readonly dummy = new THREE.Object3D();
   private readonly tmpRight = new THREE.Vector3();
@@ -450,6 +454,9 @@ export class PodVFX {
     this.blastRing.visible = false;
     this.wreckFlameAccum = 0;
     this.wreckSmokeAccum = 0;
+    this.malfunctionSmokeAccum = 0;
+    this.malfunctionSparkAccum = 0;
+    this.malfunctionBackfireAccum = 0;
   }
 
   public update(t: PodTelemetry, dt: number): void {
@@ -484,6 +491,9 @@ export class PodVFX {
       this.smokeAccumRight,
       dt
     );
+
+    // Purely graphical engine malfunction smoke, sparks & sputter backfires when hull < 75%
+    this.updateHullMalfunctionVfx(t, dt);
 
     // Cryo-coolant vapor mist from engine vents while coolant is active
     if (t.coolantActive) {
@@ -841,5 +851,96 @@ export class PodVFX {
     }
 
     return nextAccum;
+  }
+
+  private updateHullMalfunctionVfx(t: PodTelemetry, dt: number): void {
+    const tier = t.hullIntegrity > 0 ? getHullMalfunctionTier(t.hullIntegrity) : 0;
+    if (tier === 0) {
+      this.malfunctionSmokeAccum = 0;
+      this.malfunctionSparkAccum = 0;
+      this.malfunctionBackfireAccum = 0;
+      return;
+    }
+
+    this.tmpRight.set(Math.cos(t.yaw), 0, -Math.sin(t.yaw));
+    const fwdX = -Math.sin(t.yaw);
+    const fwdZ = -Math.cos(t.yaw);
+    const cosR = Math.cos(t.roll);
+    const sinR = Math.sin(t.roll);
+
+    // Intermittent dark smoke puffs from damaged turbines
+    const smokeRate = tier === 1 ? 5 : tier === 2 ? 12 : 24;
+    this.malfunctionSmokeAccum += dt * smokeRate;
+    while (this.malfunctionSmokeAccum >= 1) {
+      this.malfunctionSmokeAccum -= 1;
+      const sideX = Math.random() < 0.5 ? -1.35 : 1.35;
+      const latOffset = sideX * cosR;
+      const vertOffset = sideX * sinR;
+      const zLocal = -0.35 - Math.random() * 1.4;
+
+      const p = this.smokePool[this.smokeCursor];
+      this.smokeCursor = (this.smokeCursor + 1) % SMOKE_COUNT;
+      p.active = true;
+      p.age = 0;
+      p.life = 0.42 + Math.random() * 0.34;
+      p.pos.set(
+        t.pos.x + this.tmpRight.x * latOffset - fwdX * zLocal + (Math.random() - 0.5) * 0.35,
+        t.pos.y + vertOffset + 0.22 + (Math.random() - 0.5) * 0.22,
+        t.pos.z + this.tmpRight.z * latOffset - fwdZ * zLocal + (Math.random() - 0.5) * 0.35
+      );
+      p.vel.set(
+        t.vel.x * 0.55 - fwdX * (3 + Math.random() * 4) + (Math.random() - 0.5) * 3,
+        t.vel.y * 0.45 + 2.0 + Math.random() * 2.4,
+        t.vel.z * 0.55 - fwdZ * (3 + Math.random() * 4) + (Math.random() - 0.5) * 3
+      );
+      p.scale = (0.48 + Math.random() * 0.42) * (0.65 + tier * 0.22);
+    }
+
+    // Occasional electrical / turbine malfunction sparks
+    const sparkRate = tier === 1 ? 2.0 : tier === 2 ? 5.5 : 12.0;
+    this.malfunctionSparkAccum += dt * sparkRate;
+    while (this.malfunctionSparkAccum >= 1) {
+      this.malfunctionSparkAccum -= 1;
+      const sideX = Math.random() < 0.5 ? -1.35 : 1.35;
+      const latOffset = sideX * cosR;
+      const vertOffset = sideX * sinR;
+      const zLocal = -0.2 - Math.random() * 1.7;
+      this.tmpSparkPos.set(
+        t.pos.x + this.tmpRight.x * latOffset - fwdX * zLocal + (Math.random() - 0.5) * 0.3,
+        t.pos.y + vertOffset + 0.1 + (Math.random() - 0.5) * 0.25,
+        t.pos.z + this.tmpRight.z * latOffset - fwdZ * zLocal + (Math.random() - 0.5) * 0.3
+      );
+      this.triggerSparks(this.tmpSparkPos, tier === 3 ? 2 : 1, t.vel, 0.55 + tier * 0.12);
+    }
+
+    // Small intermittent exhaust backfire pops at severe malfunction (< 50% / < 25% hull)
+    if (tier >= 2 && (t.pLeft > 0.1 || t.pRight > 0.1)) {
+      const backfireRate = tier === 2 ? 1.8 : 5.5;
+      this.malfunctionBackfireAccum += dt * backfireRate;
+      while (this.malfunctionBackfireAccum >= 1) {
+        this.malfunctionBackfireAccum -= 1;
+        const sideX = Math.random() < 0.5 ? -1.35 : 1.35;
+        const latOffset = sideX * cosR;
+        const vertOffset = sideX * sinR;
+        const p = this.flamePool[this.flameCursor];
+        this.flameCursor = (this.flameCursor + 1) % FLAME_COUNT;
+        p.active = true;
+        p.age = 0;
+        p.life = 0.14 + Math.random() * 0.14;
+        p.pos.set(
+          t.pos.x + this.tmpRight.x * latOffset - fwdX * 0.2 + (Math.random() - 0.5) * 0.25,
+          t.pos.y + vertOffset + (Math.random() - 0.5) * 0.2,
+          t.pos.z + this.tmpRight.z * latOffset - fwdZ * 0.2 + (Math.random() - 0.5) * 0.25
+        );
+        p.vel.set(
+          t.vel.x * 0.6 - fwdX * (9 + Math.random() * 8) + (Math.random() - 0.5) * 4,
+          t.vel.y * 0.5 + (Math.random() - 0.3) * 3,
+          t.vel.z * 0.6 - fwdZ * (9 + Math.random() * 8) + (Math.random() - 0.5) * 4
+        );
+        p.scale = 0.55 + Math.random() * 0.45 * (tier === 3 ? 1.25 : 0.85);
+      }
+    } else {
+      this.malfunctionBackfireAccum = 0;
+    }
   }
 }

@@ -5,7 +5,12 @@ import {
   TOUCH_SLIDER_ZERO_FRAC,
 } from '../core/InputManager';
 import { DIFFICULTY_TIERS, getMapById, MAP_REGISTRY } from '../maps/mapRegistry';
-import { getModificationById, POD_CONFIG, POD_MODIFICATIONS } from '../pod/PodConfig';
+import {
+  getHullPerformanceScale,
+  getModificationById,
+  POD_CONFIG,
+  POD_MODIFICATIONS,
+} from '../pod/PodConfig';
 import type {
   InputSnapshot,
   MapDefinition,
@@ -495,14 +500,19 @@ export class HudController {
     this.cpProgressEl.textContent = `CP ${cpCount} / ${totalCps}`;
     this.speedEl.textContent = String(Math.round(t.speedKmh));
 
-    // Hull bar
+    // Hull bar (aligned with <75% -5%, <50% -10%, <25% -20% slowdown tiers)
     const hullPct = Math.round(t.hullIntegrity);
-    this.hullPctEl.textContent = `${hullPct}%`;
+    const hullSlowPct = Math.round((1 - getHullPerformanceScale(t.hullIntegrity)) * 100);
+    this.hullPctEl.textContent =
+      hullSlowPct > 0 && t.hullIntegrity > 0 ? `${hullPct}% (-${hullSlowPct}%)` : `${hullPct}%`;
     this.hullBarEl.style.width = `${hullPct}%`;
-    if (hullPct > 55) {
+    if (t.hullIntegrity >= 75) {
       this.hullBarEl.style.background = '#38bdf8';
       this.hullBarEl.classList.remove('hull-low');
-    } else if (hullPct > 30) {
+    } else if (t.hullIntegrity >= 50) {
+      this.hullBarEl.style.background = '#facc15';
+      this.hullBarEl.classList.remove('hull-low');
+    } else if (t.hullIntegrity >= 25) {
       this.hullBarEl.style.background = '#f59e0b';
       this.hullBarEl.classList.remove('hull-low');
     } else {

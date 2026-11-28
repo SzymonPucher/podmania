@@ -8,7 +8,7 @@ import type {
   WreckImpactInfo,
 } from '../types';
 import type { TrackBuilder } from '../world/TrackBuilder';
-import { getModificationById, POD_CONFIG } from './PodConfig';
+import { getHullPerformanceScale, getModificationById, POD_CONFIG } from './PodConfig';
 
 export interface PhysicsStateSnapshot {
   pos: THREE.Vector3;
@@ -246,12 +246,13 @@ export class PodPhysics {
 
     const isWrecked = s.hullIntegrity <= 0;
     const driveEnabled = allowDrive && !isWrecked;
-    const hullScale = s.hullIntegrity < 30 ? 0.9 + (s.hullIntegrity / 30) * 0.1 : 1.0;
+    const hullPerfScale = getHullPerformanceScale(s.hullIntegrity);
 
     const isNitroMod = this.modification === 'nitro';
     const isCooledMod = this.modification === 'cooled';
     const isFlyingMod = this.modification === 'flying';
     const weightMult = isNitroMod || isCooledMod ? POD_CONFIG.modWeightScale : 1.0;
+    const perfMult = weightMult * hullPerfScale;
 
     // 0. Active Modification Tanks (Spacebar)
     let nitroFrac = 0;
@@ -351,8 +352,8 @@ export class PodPhysics {
       );
     }
 
-    const effLeft = driveEnabled ? s.pLeft * hullScale : 0;
-    const effRight = driveEnabled ? s.pRight * hullScale : 0;
+    const effLeft = driveEnabled ? s.pLeft : 0;
+    const effRight = driveEnabled ? s.pRight : 0;
     const fwdInputLevel = driveEnabled
       ? (Math.max(0, effectiveTargetLeft) + Math.max(0, effectiveTargetRight)) * 0.5
       : 0;
@@ -482,11 +483,11 @@ export class PodPhysics {
     let driveAccel =
       (effLeft + effRight) *
       0.5 *
-      (POD_CONFIG.maxForwardAccel * weightMult) *
+      (POD_CONFIG.maxForwardAccel * perfMult) *
       (s.isGrounded || isFlyingMod ? 1.0 : POD_CONFIG.airborneDriveScale);
 
     if (s.landingBoost > 0 && s.isGrounded && driveEnabled) {
-      driveAccel += s.landingBoost * POD_CONFIG.vectorBoostExtraAccel;
+      driveAccel += s.landingBoost * POD_CONFIG.vectorBoostExtraAccel * hullPerfScale;
     }
 
     // Abyss fall check on true void gaps and crumbling bridges
@@ -577,7 +578,7 @@ export class PodPhysics {
     }
 
     const quadDragEff =
-      (POD_CONFIG.quadDrag / weightMult) *
+      (POD_CONFIG.quadDrag / perfMult) *
       (s.isGrounded || flyingThrustInAir ? 1.0 : POD_CONFIG.airborneQuadDragMult) *
       (1 - 0.48 * s.landingBoost);
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { PodModificationId, PodTelemetry } from '../types';
+import { getHullMalfunctionTier } from './PodConfig';
 
 interface HeatMaterialEntry {
   mat: THREE.MeshStandardMaterial;
@@ -143,6 +144,7 @@ export class PodMeshBuilder {
   private readonly boostOuterColor = new THREE.Color(0x38bdf8);
   private readonly nitroOuterColor = new THREE.Color(0xf43f5e);
   private readonly overloadOuterColor = new THREE.Color(0xef4444);
+  private readonly malfunctionOuterColor = new THREE.Color(0xd9480f);
   private readonly heatColor = new THREE.Color(0xff2a14);
   private readonly heatEmissiveColor = new THREE.Color(0xff1e00);
 
@@ -209,11 +211,15 @@ export class PodMeshBuilder {
     this.podRoot.rotation.set(t.pitch, t.yaw, t.roll, 'YXZ');
 
     // Subtle engine vibration & trailing cockpit
+    const malfTier = t.hullIntegrity > 0 ? getHullMalfunctionTier(t.hullIntegrity) : 0;
+    const malfSeverity = malfTier / 3; // 0, 0.33, 0.67, 1.0
+    const malfVib = malfTier > 0 ? (0.012 + malfSeverity * 0.032) : 0;
     const overloadVib = t.airborneOverload ? 0.055 : 0;
     const overheatVib = t.overheatedLeft || t.overheatedRight ? 0.032 : 0;
     const nitroVib = t.nitroActive ? 0.028 : 0;
     const vib =
       (Math.abs(t.pLeft) + Math.abs(t.pRight)) * 0.008 +
+      malfVib +
       overloadVib +
       overheatVib +
       nitroVib;
@@ -273,27 +279,49 @@ export class PodMeshBuilder {
     const engBuffetL = buffetScale * 0.52;
     const engBuffetR = buffetScale * 0.52;
 
+    // Purely graphical engine malfunction shudder & misfire coughs when hull < 75%
+    const malfCoughL =
+      malfTier > 0 && Math.sin(elapsedTime * (5.3 + malfTier * 2.1) + 0.7) > 0.92 - malfSeverity * 0.14
+        ? 1
+        : 0;
+    const malfCoughR =
+      malfTier > 0 && Math.sin(elapsedTime * (4.7 + malfTier * 2.4) + 3.1) > 0.92 - malfSeverity * 0.14
+        ? 1
+        : 0;
+    const malfAmp = malfSeverity * (0.025 + revEnergy * 0.028);
+    const malfJitXL = malfAmp * Math.sin(elapsedTime * 37.3 + 0.4) + malfCoughL * malfSeverity * 0.045 * (Math.random() - 0.5);
+    const malfJitYL = malfAmp * Math.cos(elapsedTime * 43.1 + 1.1) + malfCoughL * malfSeverity * 0.04 * (Math.random() - 0.5);
+    const malfJitZL = malfCoughL * malfSeverity * 0.09;
+    const malfRollL = malfAmp * 1.4 * Math.sin(elapsedTime * 29.7) + malfCoughL * malfSeverity * 0.055;
+    const malfPitchL = malfAmp * 0.9 * Math.cos(elapsedTime * 33.4) - malfCoughL * malfSeverity * 0.04;
+
+    const malfJitXR = malfAmp * Math.cos(elapsedTime * 35.9 + 2.2) + malfCoughR * malfSeverity * 0.045 * (Math.random() - 0.5);
+    const malfJitYR = malfAmp * Math.sin(elapsedTime * 41.7 + 2.8) + malfCoughR * malfSeverity * 0.04 * (Math.random() - 0.5);
+    const malfJitZR = malfCoughR * malfSeverity * 0.09;
+    const malfRollR = malfAmp * 1.4 * Math.cos(elapsedTime * 28.3 + 1.5) - malfCoughR * malfSeverity * 0.055;
+    const malfPitchR = malfAmp * 0.9 * Math.sin(elapsedTime * 31.8 + 0.9) - malfCoughR * malfSeverity * 0.04;
+
     this.leftEngine.root.position.set(
-      -1.35 + engL.x + engIdleX_L + Math.sin(elapsedTime * 19.1 + 0.5) * engBuffetL,
-      engL.y + engIdleY_L + Math.cos(elapsedTime * 23.3 + 1.2) * engBuffetL,
-      engL.z + engIdleZ_L
+      -1.35 + engL.x + engIdleX_L + Math.sin(elapsedTime * 19.1 + 0.5) * engBuffetL + malfJitXL,
+      engL.y + engIdleY_L + Math.cos(elapsedTime * 23.3 + 1.2) * engBuffetL + malfJitYL,
+      engL.z + engIdleZ_L + malfJitZL
     );
     this.leftEngine.root.rotation.set(
-      engL.pitch + engIdlePitch_L + Math.cos(elapsedTime * 17.5) * engBuffetL * 0.65,
+      engL.pitch + engIdlePitch_L + Math.cos(elapsedTime * 17.5) * engBuffetL * 0.65 + malfPitchL,
       engL.yaw + engIdleX_L * 0.14,
-      engL.roll + engIdleRoll_L + Math.sin(elapsedTime * 15.8 + 0.9) * engBuffetL * 1.1,
+      engL.roll + engIdleRoll_L + Math.sin(elapsedTime * 15.8 + 0.9) * engBuffetL * 1.1 + malfRollL,
       'YXZ'
     );
 
     this.rightEngine.root.position.set(
-      1.35 + engR.x + engIdleX_R + Math.cos(elapsedTime * 18.4 + 2.1) * engBuffetR,
-      engR.y + engIdleY_R + Math.sin(elapsedTime * 22.7 + 3.0) * engBuffetR,
-      engR.z + engIdleZ_R
+      1.35 + engR.x + engIdleX_R + Math.cos(elapsedTime * 18.4 + 2.1) * engBuffetR + malfJitXR,
+      engR.y + engIdleY_R + Math.sin(elapsedTime * 22.7 + 3.0) * engBuffetR + malfJitYR,
+      engR.z + engIdleZ_R + malfJitZR
     );
     this.rightEngine.root.rotation.set(
-      engR.pitch + engIdlePitch_R + Math.sin(elapsedTime * 16.9 + 1.7) * engBuffetR * 0.65,
+      engR.pitch + engIdlePitch_R + Math.sin(elapsedTime * 16.9 + 1.7) * engBuffetR * 0.65 + malfPitchR,
       engR.yaw + engIdleX_R * 0.14,
-      engR.roll + engIdleRoll_R + Math.cos(elapsedTime * 15.2 + 2.4) * engBuffetR * 1.1,
+      engR.roll + engIdleRoll_R + Math.cos(elapsedTime * 15.2 + 2.4) * engBuffetR * 1.1 + malfRollR,
       'YXZ'
     );
 
@@ -316,7 +344,11 @@ export class PodMeshBuilder {
       (1.25 + t.landingBoost * 1.9 + (t.nitroActive ? 0.6 : 0)) * repulsorPulse;
 
     const maxHeat = Math.max(t.heatLeft, t.heatRight) / 100;
-    const energyPulse = 0.85 + 0.15 * Math.sin(elapsedTime * 11.0);
+    const malfFlicker =
+      malfTier > 0 && (malfCoughL > 0 || malfCoughR > 0 || Math.random() < malfSeverity * 0.08)
+        ? 0.35 + Math.random() * 0.4
+        : 1.0;
+    const energyPulse = (0.85 + 0.15 * Math.sin(elapsedTime * 11.0)) * malfFlicker;
     if (t.coolantActive) {
       this.couplerGlowMat.color.setHex(0x67e8f9);
       this.couplerGlowMat.emissive.setHex(0x38bdf8);
@@ -364,8 +396,11 @@ export class PodMeshBuilder {
       t.heatLeft,
       t.overheatedLeft,
       t.nitroActive && !t.overheatedLeft,
+      malfSeverity,
+      malfCoughL > 0,
       dt,
-      elapsedTime
+      elapsedTime,
+      0.0
     );
     this.updateEngineVisuals(
       this.rightEngine,
@@ -376,8 +411,11 @@ export class PodMeshBuilder {
       t.heatRight,
       t.overheatedRight,
       t.nitroActive && !t.overheatedRight,
+      malfSeverity,
+      malfCoughR > 0,
       dt,
-      elapsedTime
+      elapsedTime,
+      2.3
     );
 
     // Glow under pod during landing boost, nitro burn, or cryo-coolant flush
@@ -398,18 +436,26 @@ export class PodMeshBuilder {
     this.podRoot.updateMatrixWorld(true);
     const invRoot = this.tmpInvRoot.copy(this.podRoot.matrixWorld).invert();
 
-    // Update Plasma Binder Arc
+    // Update Plasma Binder Arc (unstable crackle & brief flickers when hull damaged)
     this.leftEngine.emitterWorldDummy.getWorldPosition(this.tmpA).applyMatrix4(invRoot);
     this.rightEngine.emitterWorldDummy.getWorldPosition(this.tmpB).applyMatrix4(invRoot);
+    const plasmaJitterMult = 1 + malfSeverity * 1.35 + (malfCoughL || malfCoughR ? malfSeverity * 0.85 : 0);
     for (let l = 0; l < this.plasmaLines.length; l++) {
       const arc = this.plasmaLines[l];
       const pos = arc.positions;
+      const baseOpacity = l === 2 ? 0.95 : 0.72;
+      const lineMat = arc.line.material as THREE.LineBasicMaterial;
+      lineMat.opacity =
+        malfTier > 0 && Math.random() < malfSeverity * 0.12
+          ? baseOpacity * (0.2 + Math.random() * 0.45)
+          : baseOpacity;
+      const jitter = arc.jitterScale * plasmaJitterMult;
       for (let i = 0; i <= PLASMA_SEGMENTS; i++) {
         const u = i / PLASMA_SEGMENTS;
         const env = Math.sin(u * Math.PI);
-        const jx = (Math.random() - 0.5) * arc.jitterScale * env;
-        const jy = (Math.random() - 0.5) * arc.jitterScale * env;
-        const jz = (Math.random() - 0.5) * arc.jitterScale * env;
+        const jx = (Math.random() - 0.5) * jitter * env;
+        const jy = (Math.random() - 0.5) * jitter * env;
+        const jz = (Math.random() - 0.5) * jitter * env;
         pos[i * 3] = THREE.MathUtils.lerp(this.tmpA.x, this.tmpB.x, u) + jx;
         pos[i * 3 + 1] = THREE.MathUtils.lerp(this.tmpA.y, this.tmpB.y, u) + jy;
         pos[i * 3 + 2] = THREE.MathUtils.lerp(this.tmpA.z, this.tmpB.z, u) + jz;
@@ -454,8 +500,11 @@ export class PodMeshBuilder {
     heat: number,
     overheated: boolean,
     nitroActive: boolean,
+    malfunctionSeverity: number,
+    malfunctionCough: boolean,
     dt: number,
-    elapsedTime: number
+    elapsedTime: number,
+    phaseOffset: number
   ): void {
     // Update engine hull redness & thermal glow based on overheat level (0..100)
     const heatFrac = THREE.MathUtils.clamp(heat / 100, 0, 1);
@@ -471,9 +520,16 @@ export class PodMeshBuilder {
         1.0 + redness * (overheated ? 2.4 * overheatPulse : 1.4);
     }
 
-    // Spin 28-blade intake fan
+    // Spin 28-blade intake fan (slightly sluggish & stuttering visually when damaged)
+    const fanMalfScale =
+      malfunctionSeverity > 0
+        ? (1 - malfunctionSeverity * 0.24) *
+          (malfunctionCough ? 0.52 : 0.92 + 0.08 * Math.sin(elapsedTime * 19 + phaseOffset))
+        : 1.0;
     eng.fanGroup.rotation.z +=
-      dt * (4.0 + Math.abs(power) * 32.0 + landingBoost * 24.0 + (nitroActive ? 22.0 : 0));
+      dt *
+      (4.0 + Math.abs(power) * 32.0 + landingBoost * 24.0 + (nitroActive ? 22.0 : 0)) *
+      fanMalfScale;
 
     // Flare forward yellow airbrake flaps on reverse (-30%)
     const flareRad = flare * THREE.MathUtils.degToRad(26);
@@ -481,31 +537,59 @@ export class PodMeshBuilder {
       f.pivot.setRotationFromAxisAngle(f.axis, f.sign * flareRad);
     }
 
-    // Rear exhaust jet plumes (supercharged during landing boost or nitro, sputtering on overload)
+    // Rear exhaust jet plumes (supercharged during landing boost or nitro, sputtering on overload or hull malfunction)
     const posP = Math.max(0, power);
     const effPlume = Math.max(posP, landingBoost * 0.85, nitroActive ? 1.15 : 0);
     if (effPlume > 0.02) {
-      eng.exhaustCore.visible = true;
-      eng.exhaustOuter.visible = true;
-      const sputter = airborneOverload ? 0.65 + Math.random() * 0.7 : 1.0;
-      const flicker = (0.9 + Math.sin(elapsedTime * 45 * Math.PI * 2) * 0.12) * sputter;
-      const boostScale = 1 + landingBoost * 0.75 + (nitroActive ? 0.45 : 0);
-      const lenScale = (0.35 + effPlume * 1.45) * flicker * boostScale;
-      const radScale = (0.65 + Math.min(1.4, effPlume) * 0.45) * (1 + landingBoost * 0.3 + (nitroActive ? 0.22 : 0));
-      eng.exhaustCore.scale.set(radScale, lenScale * 0.85, radScale);
-      eng.exhaustOuter.scale.set(radScale * 1.15, lenScale, radScale * 1.15);
+      const malfDropout =
+        malfunctionSeverity > 0 &&
+        (malfunctionCough
+          ? Math.random() < 0.25 + malfunctionSeverity * 0.35
+          : Math.random() < malfunctionSeverity * 0.045);
 
-      const outerMat = eng.exhaustOuter.material as THREE.MeshBasicMaterial;
-      if (airborneOverload) {
-        outerMat.color.copy(this.overloadOuterColor);
-      } else if (nitroActive) {
-        outerMat.color.copy(this.nitroOuterColor);
-      } else if (landingBoost > 0.02) {
-        outerMat.color
-          .copy(this.normalOuterColor)
-          .lerp(this.boostOuterColor, Math.min(1, landingBoost * 1.2));
+      if (malfDropout) {
+        eng.exhaustCore.visible = false;
+        eng.exhaustOuter.visible = false;
       } else {
-        outerMat.color.copy(this.normalOuterColor);
+        eng.exhaustCore.visible = true;
+        eng.exhaustOuter.visible = true;
+        const malfSputter =
+          malfunctionSeverity > 0
+            ? (1 - malfunctionSeverity * 0.16) *
+              (malfunctionCough
+                ? 0.45 + Math.random() * 0.45
+                : 1 - malfunctionSeverity * 0.22 * (0.5 + 0.5 * Math.sin(elapsedTime * 27 + phaseOffset)) * Math.random())
+            : 1.0;
+        const sputter = (airborneOverload ? 0.65 + Math.random() * 0.7 : 1.0) * malfSputter;
+        const flicker = (0.9 + Math.sin(elapsedTime * 45 * Math.PI * 2) * 0.12) * sputter;
+        const boostScale = 1 + landingBoost * 0.75 + (nitroActive ? 0.45 : 0);
+        const lenScale = (0.35 + effPlume * 1.45) * flicker * boostScale;
+        const radScale =
+          (0.65 + Math.min(1.4, effPlume) * 0.45) *
+          (1 + landingBoost * 0.3 + (nitroActive ? 0.22 : 0)) *
+          (malfunctionCough ? 0.82 : 1.0);
+        eng.exhaustCore.scale.set(radScale, lenScale * 0.85, radScale);
+        eng.exhaustOuter.scale.set(radScale * 1.15, lenScale, radScale * 1.15);
+
+        const outerMat = eng.exhaustOuter.material as THREE.MeshBasicMaterial;
+        if (airborneOverload) {
+          outerMat.color.copy(this.overloadOuterColor);
+        } else if (nitroActive) {
+          outerMat.color.copy(this.nitroOuterColor);
+        } else if (landingBoost > 0.02) {
+          outerMat.color
+            .copy(this.normalOuterColor)
+            .lerp(this.boostOuterColor, Math.min(1, landingBoost * 1.2));
+        } else if (malfunctionSeverity > 0) {
+          outerMat.color
+            .copy(this.normalOuterColor)
+            .lerp(
+              this.malfunctionOuterColor,
+              malfunctionCough ? 0.65 : malfunctionSeverity * 0.32
+            );
+        } else {
+          outerMat.color.copy(this.normalOuterColor);
+        }
       }
     } else {
       eng.exhaustCore.visible = false;

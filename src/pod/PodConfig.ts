@@ -147,5 +147,26 @@ export function getModificationById(id: PodModificationId): PodModificationDef {
   return POD_MODIFICATIONS.find((m) => m.id === id) ?? POD_MODIFICATIONS[0];
 }
 
+/**
+ * Hull damage malfunction tier:
+ * - 0: >= 75% hull (nominal, 0% penalty)
+ * - 1: < 75% hull (-5% accel & max speed)
+ * - 2: < 50% hull (-10% accel & max speed)
+ * - 3: < 25% hull (-20% accel & max speed)
+ */
+export function getHullMalfunctionTier(hullIntegrity: number): 0 | 1 | 2 | 3 {
+  if (hullIntegrity < 25) return 3;
+  if (hullIntegrity < 50) return 2;
+  if (hullIntegrity < 75) return 1;
+  return 0;
+}
+
+export function getHullPerformanceScale(hullIntegrity: number): number {
+  if (hullIntegrity < 25) return 0.8;
+  if (hullIntegrity < 50) return 0.9;
+  if (hullIntegrity < 75) return 0.95;
+  return 1.0;
+}
+
 export const FIXED_DT = 1 / 120;
 export const WRECK_ANIM_DURATION_SEC = 3.0;
