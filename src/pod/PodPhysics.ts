@@ -445,7 +445,7 @@ export class PodPhysics {
       -(this.tmpNormal.x * this.tmpForward.x + this.tmpNormal.z * this.tmpForward.z) /
       Math.max(0.25, this.tmpNormal.y);
     const groundVelY = vFwd * slopeTanY;
-    const hDot = s.vel.y - groundVelY;
+    let hDot = s.vel.y - groundVelY;
 
     const touchdownHeight = POD_CONFIG.hoverHeight * 1.22;
     const withinRepulsor = h <= POD_CONFIG.maxRepulsorReach;
@@ -705,7 +705,10 @@ export class PodPhysics {
           if (minForwardInput > 0) {
             // Flying Engines: no 0.5s shutoff required, engines on -> zero damage, NO speed boost
             const targetSlopeVelY = vFwd * slopeTanY;
-            s.vel.y = Math.max(s.vel.y * 0.2, targetSlopeVelY - 1.5);
+            s.vel.y = Math.min(
+              targetSlopeVelY,
+              Math.max(s.vel.y * 0.2, targetSlopeVelY - 1.5)
+            );
             s.vel.x = this.tmpForward.x * vFwd + this.tmpRight.x * (vLat * 0.5);
             s.vel.z = this.tmpForward.z * vFwd + this.tmpRight.z * (vLat * 0.5);
             if (rawImpactSpeed > POD_CONFIG.safeImpactSpeed * 0.7 || s.airTime >= 0.6) {
@@ -753,7 +756,10 @@ export class PodPhysics {
           s.vel.z = this.tmpForward.z * vFwd + this.tmpRight.z * (vLat * 0.35);
 
           const targetSlopeVelY = vFwd * slopeTanY;
-          s.vel.y = Math.max(s.vel.y * 0.2, targetSlopeVelY - 1.5);
+          s.vel.y = Math.min(
+            targetSlopeVelY,
+            Math.max(s.vel.y * 0.2, targetSlopeVelY - 1.5)
+          );
 
           s.pLeft = Math.max(s.pLeft, effectiveIgnitionThrust);
           s.pRight = Math.max(s.pRight, effectiveIgnitionThrust);
@@ -787,6 +793,9 @@ export class PodPhysics {
     } else if (s.isGrounded && s.airTime > 0) {
       this.resetAirSequenceTrackers();
     }
+
+    // Recompute hDot in case touchdown resolution adjusted vel.y or vFwd
+    hDot = s.vel.y - vFwd * slopeTanY;
 
     // 7. Unilateral Repulsor Hover Acceleration (NEVER pulls down off a ramp lip!)
     let aHover = 0;
