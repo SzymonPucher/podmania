@@ -240,8 +240,21 @@ export class TrackBuilder {
     if (bestBelow) return bestBelow;
     if (lowestFallback) return lowestFallback;
 
-    // Fallback: nearest slice center
+    // Fallback: nearest slice center (or deep abyss if off the edge of an open bridge_deck / void_gap)
     const nearest = this.findNearestSlice(x, z, y);
+    const relX = x - nearest.center.x;
+    const relZ = z - nearest.center.z;
+    const latDist = Math.abs(relX * nearest.right.x + relZ * nearest.right.z);
+    if (
+      nearest.feature === 'void_gap' ||
+      (nearest.feature === 'bridge_deck' && latDist > nearest.canyonWidth * 0.5 + 1.2)
+    ) {
+      return {
+        groundY: nearest.center.y - 90,
+        normal: new THREE.Vector3(0, 1, 0),
+        found: false,
+      };
+    }
     return {
       groundY: nearest.center.y,
       normal: new THREE.Vector3(0, 1, 0),
@@ -278,7 +291,12 @@ export class TrackBuilder {
     let hitWall = false;
     let impactSpeed = 0;
 
-    if (Math.abs(lateralDist) > maxOffset) {
+    // Allow falling off the open edges of elevated bridge_deck sections (and don't snap back once already fallen off)
+    const openDropEdge =
+      slice.feature === 'bridge_deck' ||
+      (Math.abs(lateralDist) > slice.canyonWidth * 0.5 && pos.y < slice.center.y - 6.0);
+
+    if (!openDropEdge && Math.abs(lateralDist) > maxOffset) {
       const sign = Math.sign(lateralDist);
       const excess = Math.abs(lateralDist) - maxOffset;
       // Push pod smoothly back into canyon corridor
@@ -772,6 +790,14 @@ export class TrackBuilder {
             if (s.feature === 'void_gap') {
               wy -= 88 + wallD * 1.2;
               tmpCol.copy(colVoidAbyss);
+            } else if (s.feature === 'bridge_deck') {
+              if (wallD <= 1.2) {
+                wy += bank + (wallD / 1.2) * 0.35;
+                tmpCol.copy(colBridgeEdge);
+              } else {
+                wy -= 82 + wallD * 0.8;
+                tmpCol.copy(colVoidAbyss);
+              }
             } else if (wallD <= 3.5) {
               wy += bank + (wallD / 3.5) * 1.8;
               tmpCol.copy(colBridgeEdge);

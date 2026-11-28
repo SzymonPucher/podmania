@@ -490,10 +490,16 @@ export class PodPhysics {
       driveAccel += s.landingBoost * POD_CONFIG.vectorBoostExtraAccel * hullPerfScale;
     }
 
-    // Abyss fall check on true void gaps and crumbling bridges
+    // Abyss fall check on true void gaps, crumbling bridges, and falling off elevated bridge decks
+    const fellOffBridgeEdge =
+      Math.abs(sliceLatDist) > nearestSlice.canyonWidth * 0.5 + 2.0 &&
+      s.pos.y < nearestSlice.center.y - 14.0;
     if (
-      (currentFeature === 'void_gap' || currentFeature === 'crumbling_bridge') &&
-      s.pos.y < nearestSlice.center.y - 20.0
+      fellOffBridgeEdge ||
+      ((currentFeature === 'void_gap' ||
+        currentFeature === 'crumbling_bridge' ||
+        currentFeature === 'bridge_deck') &&
+        s.pos.y < nearestSlice.center.y - 20.0)
     ) {
       s.hullIntegrity = 0;
       s.lastLandingEvent = 'hard_impact';
@@ -816,7 +822,8 @@ export class PodPhysics {
       driveEnabled &&
       (!wasGrounded ||
         currentFeature === 'void_gap' ||
-        currentFeature === 'crumbling_bridge') &&
+        currentFeature === 'crumbling_bridge' ||
+        currentFeature === 'bridge_deck') &&
       postGround.groundY - s.pos.y > 2.2;
 
     if (slammedIntoCliffWall) {
