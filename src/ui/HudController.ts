@@ -45,6 +45,7 @@ export interface HudActions {
   onRespawn: () => void;
   onBackToMenu: () => void;
   onToggleFullscreen: () => void;
+  onOpenHowToPlay: () => void;
 }
 
 export class HudController {
@@ -138,6 +139,9 @@ export class HudController {
     document.getElementById('btn-hud-fullscreen')?.addEventListener('click', () => this.actions.onToggleFullscreen());
     document.getElementById('btn-pause-fullscreen')?.addEventListener('click', () => this.actions.onToggleFullscreen());
     document.getElementById('btn-menu-fullscreen')?.addEventListener('click', () => this.actions.onToggleFullscreen());
+    document.getElementById('btn-menu-htp')?.addEventListener('click', () => this.actions.onOpenHowToPlay());
+    document.getElementById('btn-menu-htp-footer')?.addEventListener('click', () => this.actions.onOpenHowToPlay());
+    document.getElementById('btn-pause-htp')?.addEventListener('click', () => this.actions.onOpenHowToPlay());
     window.addEventListener('keydown', (e) => {
       if (e.code === 'KeyH' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey) {
         this.toggleMinimalHud();

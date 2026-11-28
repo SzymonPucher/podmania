@@ -20,6 +20,7 @@ import type {
   PodModificationId,
   RaceState,
 } from './types';
+import { HowToPlayModal } from './ui/HowToPlayModal';
 import { HudController } from './ui/HudController';
 import { ChaseCamera } from './world/ChaseCamera';
 import { CheckpointSystem } from './world/CheckpointSystem';
@@ -39,6 +40,7 @@ class PodManiaApp {
   private readonly fullscreen: FullscreenManager;
   private readonly input: InputManager;
   private readonly hud: HudController;
+  private readonly howToPlay = new HowToPlayModal();
   private resizeRafId: number | null = null;
   private fullscreenResizeTimer: number | null = null;
 
@@ -153,6 +155,7 @@ class PodManiaApp {
       onRespawn: () => this.respawnAtCheckpoint(),
       onBackToMenu: () => this.showMenu(),
       onToggleFullscreen: () => this.fullscreen.toggle(),
+      onOpenHowToPlay: () => this.howToPlay.open(),
     });
     this.hud.setFullscreenState(
       this.fullscreen.isFullscreen(),
@@ -248,6 +251,9 @@ class PodManiaApp {
 
   private startCountdown(): void {
     if (!this.checkpoints) return;
+    if (this.howToPlay.isOpen()) {
+      this.howToPlay.close();
+    }
     (document.activeElement as HTMLElement | null)?.blur();
     this.resetPodToStart();
     this.raceTimeMs = 0;
@@ -320,6 +326,10 @@ class PodManiaApp {
   }
 
   private handleEscape(): void {
+    if (this.howToPlay.isOpen()) {
+      this.howToPlay.close();
+      return;
+    }
     if (this.raceState === 'RACING') {
       this.pauseRace();
     } else if (this.raceState === 'PAUSED') {
