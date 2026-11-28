@@ -29,6 +29,9 @@ export const TOUCH_SLIDER_TOP_FRAC = 0.18;
 export const TOUCH_SLIDER_ZERO_FRAC = 0.80;
 export const TOUCH_SLIDER_ZERO_DEADZONE = 0.02;
 export const TOUCH_SLIDER_REV_FRAC = 0.92;
+/** Top 20% of the slider rail snaps to 100% throttle for reliable landing */
+export const TOUCH_SLIDER_FULL_FRAC =
+  TOUCH_SLIDER_TOP_FRAC + (TOUCH_SLIDER_REV_FRAC - TOUCH_SLIDER_TOP_FRAC) * 0.2;
 
 /** Horizontal middle-zone thresholds in normalized viewport X (0 = left, 1 = right) */
 export const TOUCH_MID_LEFT_THRESHOLD = 0.28;
@@ -261,11 +264,11 @@ export class InputManager {
     const zeroTop = TOUCH_SLIDER_ZERO_FRAC - TOUCH_SLIDER_ZERO_DEADZONE;
     const zeroBottom = TOUCH_SLIDER_ZERO_FRAC + TOUCH_SLIDER_ZERO_DEADZONE;
 
-    if (yNorm <= TOUCH_SLIDER_TOP_FRAC) {
+    if (yNorm <= TOUCH_SLIDER_FULL_FRAC) {
       return 1.0;
     }
     if (yNorm < zeroTop) {
-      return (zeroTop - yNorm) / (zeroTop - TOUCH_SLIDER_TOP_FRAC);
+      return (zeroTop - yNorm) / (zeroTop - TOUCH_SLIDER_FULL_FRAC);
     }
     if (yNorm <= zeroBottom) {
       return 0;
