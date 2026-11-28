@@ -74,6 +74,8 @@ export const POD_CONFIG = {
 
   // Wall Collision
   wallCollisionRadius: 2.1,
+  headOnWreckSpeedMs: 200 / 3.6, // > 200 km/h straight head-on hit wrecks pod
+  headOnWreckCosThreshold: 0.78, // within ~38.7° of straight head-on normal
 } as const;
 
 export const POD_MODIFICATIONS: PodModificationDef[] = [

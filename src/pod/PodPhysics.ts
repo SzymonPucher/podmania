@@ -853,9 +853,25 @@ export class PodPhysics {
     const wallHit = track.resolveWallAndCeilingCollision(
       s.pos,
       s.vel,
-      POD_CONFIG.wallCollisionRadius
+      POD_CONFIG.wallCollisionRadius,
+      POD_CONFIG.headOnWreckSpeedMs,
+      POD_CONFIG.headOnWreckCosThreshold
     );
-    if (wallHit.hitWall && wallHit.impactSpeed > 8) {
+    if (driveEnabled && wallHit.headOnWreck) {
+      s.hullIntegrity = 0;
+      s.lastLandingEvent = 'hard_impact';
+      s.lastLandingDamage = 100;
+      if (wreckCause === null) {
+        wreckCause = 'wall_impact';
+        wreckImpactSpeed = Math.max(wallHit.impactSpeed, this.preWallVel.length());
+        this.wreckNormal.copy(s.vel).sub(this.preWallVel);
+        if (this.wreckNormal.lengthSq() > 1e-4) {
+          this.wreckNormal.normalize();
+        } else {
+          this.wreckNormal.set(0, 1, 0);
+        }
+      }
+    } else if (wallHit.hitWall && wallHit.impactSpeed > 8) {
       const wallDmg = THREE.MathUtils.clamp((wallHit.impactSpeed - 8) * 0.45, 2, 18);
       s.hullIntegrity = Math.max(0, s.hullIntegrity - wallDmg);
       if (s.lastLandingEvent === 'none') {

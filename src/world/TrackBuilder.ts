@@ -280,8 +280,10 @@ export class TrackBuilder {
   public resolveWallAndCeilingCollision(
     pos: THREE.Vector3,
     vel: THREE.Vector3,
-    radius: number
-  ): { hitWall: boolean; impactSpeed: number } {
+    radius: number,
+    headOnSpeedMs = 200 / 3.6,
+    headOnCosThreshold = 0.78
+  ): { hitWall: boolean; impactSpeed: number; headOnWreck: boolean } {
     const slice = this.findNearestSlice(pos.x, pos.z, pos.y);
     const relX = pos.x - slice.center.x;
     const relZ = pos.z - slice.center.z;
@@ -290,6 +292,7 @@ export class TrackBuilder {
 
     let hitWall = false;
     let impactSpeed = 0;
+    let headOnWreck = false;
 
     // Allow falling off the open edges of elevated bridge_deck sections (and don't snap back once already fallen off)
     const openDropEdge =
@@ -303,9 +306,16 @@ export class TrackBuilder {
       pos.x -= slice.right.x * sign * excess;
       pos.z -= slice.right.z * sign * excess;
 
+      const preHorizSpeed = Math.hypot(vel.x, vel.z);
       const vIntoWall = (vel.x * slice.right.x + vel.z * slice.right.z) * sign;
       if (vIntoWall > 0) {
         impactSpeed = vIntoWall;
+        if (
+          preHorizSpeed > headOnSpeedMs &&
+          vIntoWall / preHorizSpeed >= headOnCosThreshold
+        ) {
+          headOnWreck = true;
+        }
         // Deflect velocity parallel to canyon wall + scrub speed
         vel.x -= slice.right.x * sign * vIntoWall * 1.25;
         vel.z -= slice.right.z * sign * vIntoWall * 1.25;
@@ -341,9 +351,17 @@ export class TrackBuilder {
         pos.x += nx * push;
         pos.z += nz * push;
 
+        const preHorizSpeed = Math.hypot(vel.x, vel.z);
         const vInto = vel.x * nx + vel.z * nz;
         if (vInto < 0) {
-          impactSpeed = Math.max(impactSpeed, -vInto);
+          const normalImpact = -vInto;
+          impactSpeed = Math.max(impactSpeed, normalImpact);
+          if (
+            preHorizSpeed > headOnSpeedMs &&
+            normalImpact / preHorizSpeed >= headOnCosThreshold
+          ) {
+            headOnWreck = true;
+          }
           vel.x -= nx * vInto * 1.3;
           vel.z -= nz * vInto * 1.3;
           vel.x *= 0.82;
@@ -353,7 +371,7 @@ export class TrackBuilder {
       }
     }
 
-    return { hitWall, impactSpeed };
+    return { hitWall, impactSpeed, headOnWreck };
   }
 
   public findNearestSlice(x: number, z: number, y?: number): SampledSlice {
