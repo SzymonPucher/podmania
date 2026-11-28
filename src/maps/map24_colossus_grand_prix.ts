@@ -35,8 +35,8 @@ export const MAP24_COLOSSUS_GRAND_PRIX: MapDefinition = {
     { pos: [735, -46, -820], canyonWidth: 32, wallHeight: 22, bankingDeg: 0, feature: 'double_decker' },
     { pos: [865, -48, -775], canyonWidth: 32, wallHeight: 22, bankingDeg: 0, feature: 'double_decker' },
     { pos: [985, -58, -725], canyonWidth: 28, wallHeight: 16, bankingDeg: 0, feature: 'bridge_deck' },
-    { pos: [1055, -53, -695], canyonWidth: 26, wallHeight: 14, bankingDeg: 0, feature: 'jump_lip' },
-    { pos: [1105, -58, -670], canyonWidth: 28, wallHeight: 12, bankingDeg: 0, feature: 'void_gap', voidGapLengthM: 80 },
+    { pos: [1055, -58, -695], canyonWidth: 26, wallHeight: 14, bankingDeg: 0, feature: 'jump_lip' },
+    { pos: [1105, -52, -670], canyonWidth: 28, wallHeight: 12, bankingDeg: 0, feature: 'void_gap' },
     { pos: [1165, -68, -640], canyonWidth: 30, wallHeight: 18, bankingDeg: 0, feature: 'landing_slope', checkpoint: true },
 
     // Sector 3: Eastern Double-Apex & 56m Split Terrace
